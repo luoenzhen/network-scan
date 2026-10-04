@@ -22,7 +22,10 @@ public class BonjourDiscoveryService {
         "_companion-link._tcp",
         "_raop._tcp",
         "_printer._tcp",
-        "_ipp._tcp"
+        "_ipp._tcp",
+        "_ssh._tcp",
+        "_workstation._tcp",
+        "_device-info._tcp"
     ]
     
     public init() {}

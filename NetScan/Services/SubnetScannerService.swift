@@ -256,49 +256,12 @@ public class SubnetScannerService {
         return nil
     }
     
-    /// Reads the actual hardware MAC address from the kernel ARP table (RTF_LLINFO)
+    /// Resolves the MAC address if available.
+    /// Note: Direct kernel ARP table access is restricted on iOS 11+
+    /// sandboxes for user privacy protection.
     public func resolveARPMACAddress(ip: String) -> String? {
-        #if canImport(Darwin)
-        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, AF_INET, NET_RT_FLAGS, RTF_LLINFO]
-        var len: size_t = 0
-        guard sysctl(&mib, u_int(mib.count), nil, &len, nil, 0) == 0, len > 0 else {
-            return nil
-        }
-        
-        var buffer = [Int8](repeating: 0, count: len)
-        guard sysctl(&mib, u_int(mib.count), &buffer, &len, nil, 0) == 0 else {
-            return nil
-        }
-        
-        var offset = 0
-        while offset < len {
-            let rtm = buffer.withUnsafeBytes { $0.load(fromByteOffset: offset, as: rt_msghdr.self) }
-            let totalLen = Int(rtm.rtm_msglen)
-            if totalLen == 0 { break }
-            
-            let sinOffset = offset + MemoryLayout<rt_msghdr>.size
-            let sin = buffer.withUnsafeBytes { $0.load(fromByteOffset: sinOffset, as: sockaddr_in.self) }
-            
-            var ipBuf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-            var inAddr = sin.sin_addr
-            inet_ntop(AF_INET, &inAddr, &ipBuf, socklen_t(INET_ADDRSTRLEN))
-            let entryIP = String(cString: ipBuf)
-            
-            if entryIP == ip {
-                let sdlOffset = sinOffset + Int(sin.sin_len)
-                let sdl = buffer.withUnsafeBytes { $0.load(fromByteOffset: sdlOffset, as: sockaddr_dl.self) }
-                if sdl.sdl_alen == 6 {
-                    let macPtr = buffer.withUnsafeBytes {
-                        $0.baseAddress!.advanced(by: sdlOffset + MemoryLayout<sockaddr_dl>.offset(of: \.sdl_data)! + Int(sdl.sdl_nlen))
-                    }
-                    let bytes = macPtr.assumingMemoryBound(to: UInt8.self)
-                    return String(format: "%02X:%02X:%02X:%02X:%02X:%02X",
-                                  bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5])
-                }
-            }
-            offset += totalLen
-        }
-        #endif
+        // Direct ARP table access (RTF_LLINFO) is restricted by Apple in user-space iOS sandbox.
+        // Device identity is resolved via IEEE OUI database, reverse DNS, and mDNS/Bonjour services.
         return nil
     }
 }
