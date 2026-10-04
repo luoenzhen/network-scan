@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import SwiftUI
 
 public enum DeviceSortOption: String, CaseIterable, Identifiable {
     case ipAddress = "IP Address"
