@@ -964,10 +964,10 @@ public struct OUIVendorDatabase {
         // 3. Check loaded full 52,000+ IEEE database
         loadDatabaseIfNeeded()
         lock.lock()
-        let full = fullDatabase
+        let vendor = fullDatabase?[prefix]
         lock.unlock()
         
-        if let vendor = full?[prefix] {
+        if let vendor = vendor {
             let devType = inferDeviceType(hostname: "", vendor: vendor)
             return (vendor, devType)
         }

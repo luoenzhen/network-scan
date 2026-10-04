@@ -267,6 +267,12 @@ public struct DeviceDetailView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .onAppear {
+            viewModel.startPacketObserving()
+        }
+        .onDisappear {
+            viewModel.stopPacketObserving()
+        }
     }
     
     private func detailRow(label: String, value: String) -> some View {

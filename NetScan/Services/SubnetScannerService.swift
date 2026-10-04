@@ -95,6 +95,25 @@ public class SubnetScannerService {
                 onDeviceFound(localDevice)
             }
             
+            var lastReportedPercent = -1
+            
+            let reportProgress: (Double) -> Void = { progress in
+                let percent = Int(progress * 100)
+                var shouldDispatch = false
+                lock.lock()
+                if percent != lastReportedPercent {
+                    lastReportedPercent = percent
+                    shouldDispatch = true
+                }
+                lock.unlock()
+                
+                if shouldDispatch {
+                    DispatchQueue.main.async {
+                        onProgress(progress)
+                    }
+                }
+            }
+            
             // Safe concurrency limit
             let semaphore = DispatchSemaphore(value: 8)
             
@@ -106,7 +125,7 @@ public class SubnetScannerService {
                     scannedCount += 1.0
                     let progress = scannedCount / totalCount
                     lock.unlock()
-                    DispatchQueue.main.async { onProgress(progress) }
+                    reportProgress(progress)
                     continue
                 }
                 
@@ -135,9 +154,7 @@ public class SubnetScannerService {
                         let progress = scannedCount / totalCount
                         lock.unlock()
                         
-                        DispatchQueue.main.async {
-                            onProgress(progress)
-                        }
+                        reportProgress(progress)
                         
                         semaphore.signal()
                         group.leave()
@@ -257,23 +274,8 @@ public class SubnetScannerService {
     }
     
     private func resolveHostname(for ip: String) -> String? {
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = 0
-        inet_pton(AF_INET, ip, &addr.sin_addr)
-        
-        var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-        let result = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                getnameinfo($0, socklen_t(MemoryLayout<sockaddr_in>.size),
-                            &host, socklen_t(host.count),
-                            nil, 0, NI_NAMEREQD)
-            }
-        }
-        
-        if result == 0 {
-            return String(cString: host)
-        }
+        // Fast, safe hostname resolution without blocking DNS PTR queries on LAN.
+        // Device identity is enriched via IEEE OUI database and Bonjour / mDNS.
         return nil
     }
     

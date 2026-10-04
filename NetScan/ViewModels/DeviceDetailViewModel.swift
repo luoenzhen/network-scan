@@ -27,15 +27,22 @@ public class DeviceDetailViewModel: ObservableObject {
         self.openPorts = device.openPorts.map {
             PortScanResult(port: $0, serviceName: KnownPorts.service(for: $0), isOpen: true)
         }
-        
-        // Subscribe to packet updates matching this device IP
-        PacketInspectorService.shared.$capturedPackets
+    }
+    
+    public func startPacketObserving() {
+        packetCancellable?.cancel()
+        packetCancellable = PacketInspectorService.shared.$capturedPackets
             .receive(on: DispatchQueue.main)
-            .map { list in
-                list.filter { $0.sourceIP == device.ipAddress || $0.destinationIP == device.ipAddress }
+            .map { [weak self] list in
+                guard let self = self else { return [] }
+                return list.filter { $0.sourceIP == self.device.ipAddress || $0.destinationIP == self.device.ipAddress }
             }
             .assign(to: \.relatedPackets, on: self)
-            .store(in: &cancellables)
+    }
+    
+    public func stopPacketObserving() {
+        packetCancellable?.cancel()
+        packetCancellable = nil
     }
     
     private var cancellables = Set<AnyCancellable>()

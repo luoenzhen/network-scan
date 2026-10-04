@@ -74,72 +74,77 @@ public class DeviceListViewModel: ObservableObject {
         isScanning = true
         scanProgress = 0.0
         
+        // Pause traffic timer during scan to prevent simultaneous data access
+        trafficTimer?.invalidate()
+        trafficTimer = nil
+        
         let interface = NetworkInterfaceService.shared.getCurrentInterface()
         
         SubnetScannerService.shared.scanSubnet(
             interface: interface,
             onProgress: { [weak self] progress in
-                DispatchQueue.main.async {
-                    self?.scanProgress = progress
-                }
+                self?.scanProgress = progress
             },
             onDeviceFound: { [weak self] newDevice in
                 guard let self = self else { return }
-                DispatchQueue.main.async {
-                    if let index = self.devices.firstIndex(where: { $0.ipAddress == newDevice.ipAddress }) {
-                        var updated = newDevice
-                        updated.id = self.devices[index].id
-                        self.devices[index] = updated
-                    } else {
-                        self.devices.append(newDevice)
-                    }
+                if let index = self.devices.firstIndex(where: { $0.ipAddress == newDevice.ipAddress }) {
+                    var updated = newDevice
+                    updated.id = self.devices[index].id
+                    self.devices[index] = updated
+                } else {
+                    self.devices.append(newDevice)
                 }
             },
             onCompletion: { [weak self] allDevices in
                 guard let self = self else { return }
-                DispatchQueue.main.async {
-                    self.isScanning = false
-                    self.scanProgress = 1.0
-                    self.lastScanTimestamp = Date()
-                    if !allDevices.isEmpty {
-                        var updatedList = self.devices
-                        for dev in allDevices {
-                            if let idx = updatedList.firstIndex(where: { $0.ipAddress == dev.ipAddress }) {
-                                var u = dev
-                                u.id = updatedList[idx].id
-                                updatedList[idx] = u
-                            } else {
-                                updatedList.append(dev)
-                            }
+                self.isScanning = false
+                self.scanProgress = 1.0
+                self.lastScanTimestamp = Date()
+                if !allDevices.isEmpty {
+                    var updatedList = self.devices
+                    for dev in allDevices {
+                        if let idx = updatedList.firstIndex(where: { $0.ipAddress == dev.ipAddress }) {
+                            var u = dev
+                            u.id = updatedList[idx].id
+                            updatedList[idx] = u
+                        } else {
+                            updatedList.append(dev)
                         }
-                        self.devices = updatedList
                     }
-                    self.enrichVendorsOnline()
+                    self.devices = updatedList
                 }
+                self.startTrafficPolling()
+                self.enrichVendorsOnline()
             }
         )
     }
     
     /// Queries the online Internet vendor database for any devices not recognized locally
     public func enrichVendorsOnline() {
-        for (index, device) in devices.enumerated() {
-            if device.vendor == "Network Device" || device.vendor == "Unknown" || device.vendor.isEmpty {
-                Task {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            var updatedDevices = self.devices
+            var hasChanges = false
+            
+            for i in 0..<updatedDevices.count {
+                let dev = updatedDevices[i]
+                if dev.vendor == "Network Device" || dev.vendor == "Unknown" || dev.vendor.isEmpty {
                     let (vendor, type) = await OUIVendorDatabase.identifyDeviceAsync(
-                        macAddress: device.macAddress,
-                        hostname: device.hostname
+                        macAddress: dev.macAddress,
+                        hostname: dev.hostname
                     )
                     if vendor != "Network Device" && vendor != "Unknown" {
-                        await MainActor.run {
-                            if index < self.devices.count && self.devices[index].id == device.id {
-                                self.devices[index].vendor = vendor
-                                if self.devices[index].deviceType == .unknown {
-                                    self.devices[index].deviceType = type
-                                }
-                            }
+                        updatedDevices[i].vendor = vendor
+                        if updatedDevices[i].deviceType == .unknown {
+                            updatedDevices[i].deviceType = type
                         }
+                        hasChanges = true
                     }
                 }
+            }
+            
+            if hasChanges {
+                self.devices = updatedDevices
             }
         }
     }
@@ -147,12 +152,16 @@ public class DeviceListViewModel: ObservableObject {
     public func stopScan() {
         SubnetScannerService.shared.cancelScan()
         isScanning = false
+        startTrafficPolling()
     }
     
     private func startTrafficPolling() {
+        trafficTimer?.invalidate()
         trafficTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            TrafficMonitorService.shared.updateDeviceTraffic(devices: &self.devices)
+            guard let self = self, !self.isScanning else { return }
+            var currentDevices = self.devices
+            TrafficMonitorService.shared.updateDeviceTraffic(devices: &currentDevices)
+            self.devices = currentDevices
         }
     }
     
