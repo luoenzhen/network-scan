@@ -12,6 +12,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
+        // Prevent kernel SIGPIPE signals from terminating the app when sockets close or reset
+        signal(SIGPIPE, SIG_IGN)
+        
         // Initialize background network monitoring service
         TrafficMonitorService.shared.startMonitoring()
         PacketInspectorService.shared.startCapture()

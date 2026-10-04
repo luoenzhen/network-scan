@@ -146,11 +146,12 @@ public struct DashboardView: View {
                                         .foregroundColor(.blue)
                                 }
                             }
+                            .transition(.opacity)
                         }
                         
                         // Mini preview of first 3 active devices
                         VStack(spacing: 8) {
-                            ForEach(deviceListVM.devices.prefix(3)) { dev in
+                            ForEach(Array(deviceListVM.devices.prefix(3)), id: \.id) { dev in
                                 Button(action: {
                                     selectedTab = 1
                                 }) {

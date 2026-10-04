@@ -164,9 +164,7 @@ public class SubnetScannerService {
             
             group.notify(queue: .main) {
                 onProgress(1.0)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    onCompletion(discoveredDevices)
-                }
+                onCompletion(discoveredDevices)
             }
         }
     }

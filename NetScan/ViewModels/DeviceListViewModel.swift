@@ -98,13 +98,10 @@ public class DeviceListViewModel: ObservableObject {
             },
             onCompletion: { [weak self] _ in
                 guard let self = self else { return }
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    self.isScanning = false
-                    self.scanProgress = 1.0
-                    self.lastScanTimestamp = Date()
-                }
+                self.isScanning = false
+                self.scanProgress = 1.0
+                self.lastScanTimestamp = Date()
                 self.startTrafficPolling()
-                self.enrichVendorsOnline()
             }
         )
     }

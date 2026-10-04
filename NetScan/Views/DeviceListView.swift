@@ -36,6 +36,7 @@ public struct DeviceListView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 8)
                     .background(Color(.secondarySystemBackground))
+                    .transition(.opacity)
                 }
                 
                 // Category Filter Pills
