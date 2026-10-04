@@ -168,13 +168,13 @@ function renderDashboardPreview() {
 
   const top3 = currentDevices.slice(0, 3);
   container.innerHTML = top3.map(dev => `
-    <div class="device-row" style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">
-      <div class="device-avatar ${getAvatarColor(dev)}" style="width: 32px; height: 32px; font-size: 14px;">
+    <div class="device-row" onclick="document.querySelector('.tab-btn[data-tab=\'tab-devices\']').click()" style="padding: 8px 0; border-bottom: 1px solid var(--border-color); cursor: pointer;">
+      <div class="device-avatar ${getAvatarColor(dev)}" style="width: 34px; height: 34px; font-size: 15px;">
         <i class="fa-solid ${getDeviceIcon(dev.deviceType)}"></i>
       </div>
       <div class="device-info">
-        <div class="device-name" style="font-size: 13px;">${dev.hostname || dev.ipAddress}</div>
-        <div class="device-sub" style="font-size: 10px;">${dev.ipAddress} • ${dev.vendor}</div>
+        <div class="device-name" style="font-size: 13px; font-weight: 700;">${dev.hostname || dev.ipAddress}</div>
+        <div class="device-sub" style="font-size: 11px;">IP: ${dev.ipAddress} • ${dev.vendor}</div>
       </div>
       <div class="device-traffic-col">
         <div class="traffic-down" style="font-size: 11px;">↓ ${dev.downloadSpeedKbps.toFixed(1)} KB/s</div>
@@ -215,25 +215,38 @@ function renderDevices() {
   document.getElementById('devicesListHeader').textContent = `${filtered.length} DEVICES ON 192.168.1.0/24`;
 
   container.innerHTML = filtered.map(dev => `
-    <div class="device-row" onclick="openDeviceDetail('${dev.id}')">
-      <div class="device-avatar ${getAvatarColor(dev)}">
+    <div class="device-row" onclick="openDeviceDetail('${dev.id}')" style="align-items: flex-start; padding: 12px 14px;">
+      <div class="device-avatar ${getAvatarColor(dev)}" style="margin-top: 2px;">
         <i class="fa-solid ${getDeviceIcon(dev.deviceType)}"></i>
       </div>
-      <div class="device-info">
-        <div class="device-name-row">
-          <span class="device-name">${dev.hostname || dev.ipAddress}</span>
+      <div class="device-info" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+        <!-- ROW 1: Full Device Name & Badges -->
+        <div class="device-name-row" style="flex-wrap: wrap; gap: 6px;">
+          <span class="device-name" style="white-space: normal; word-break: break-word; font-size: 15px; font-weight: 700; line-height: 1.3;">${dev.hostname || dev.ipAddress}</span>
           ${dev.isGateway ? '<span class="tag-badge orange">GATEWAY</span>' : ''}
           ${dev.isLocalDevice ? '<span class="tag-badge blue">THIS IPHONE</span>' : ''}
         </div>
-        <div class="device-sub">
-          <span>${dev.ipAddress}</span>
-          <span>•</span>
-          <span>${dev.vendor}</span>
+        ${dev.vendor && !((dev.hostname || '').toLowerCase().includes(dev.vendor.toLowerCase())) ? `<div style="font-size: 11px; color: var(--text-secondary);">${dev.vendor}</div>` : ''}
+
+        <!-- ROW 2: Network Address on the next row -->
+        <div class="device-address-row" style="display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 2px;">
+          <span><b style="color: var(--text-secondary); font-size: 10px;">IP:</b> <span style="font-family: monospace; font-weight: 600; color: #fff;">${dev.ipAddress}</span></span>
+          <span style="color: var(--text-secondary);">•</span>
+          <span><b style="color: var(--text-secondary); font-size: 10px;">MAC:</b> <span style="font-family: monospace; color: var(--text-secondary); font-size: 11px;">${dev.macAddress}</span></span>
         </div>
-      </div>
-      <div class="device-traffic-col">
-        <div class="traffic-down">↓ ${dev.downloadSpeedKbps.toFixed(1)} KB/s</div>
-        <div class="traffic-up">↑ ${dev.uploadSpeedKbps.toFixed(1)} KB/s</div>
+
+        <!-- ROW 3: Network Traffic on the next next row -->
+        <div class="device-traffic-row" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+          <span style="background: rgba(48, 209, 88, 0.15); color: var(--accent-green); padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; font-family: monospace;">
+            <i class="fa-solid fa-arrow-down" style="font-size: 9px;"></i> ${dev.downloadSpeedKbps.toFixed(1)} KB/s
+          </span>
+          <span style="background: rgba(10, 132, 255, 0.15); color: var(--accent-blue); padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; font-family: monospace;">
+            <i class="fa-solid fa-arrow-up" style="font-size: 9px;"></i> ${dev.uploadSpeedKbps.toFixed(1)} KB/s
+          </span>
+          <span style="font-size: 11px; color: var(--text-secondary); margin-left: auto; font-family: monospace;">
+            <span style="color: var(--accent-green);">●</span> ${dev.latencyMs.toFixed(1)} ms
+          </span>
+        </div>
       </div>
     </div>
   `).join('');

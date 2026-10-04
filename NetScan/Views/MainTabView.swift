@@ -17,7 +17,7 @@ public struct MainTabView: View {
     
     public var body: some View {
         TabView(selection: $selectedTab) {
-            DashboardView(viewModel: dashboardVM, deviceListVM: deviceListVM)
+            DashboardView(viewModel: dashboardVM, deviceListVM: deviceListVM, selectedTab: $selectedTab)
                 .tabItem {
                     Label("Dashboard", systemImage: "speedometer")
                 }

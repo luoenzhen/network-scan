@@ -2,7 +2,10 @@
 //  DeviceRowView.swift
 //  NetScan
 //
-//  List item rendering a single LAN device with live KB/s bandwidth counters.
+//  List item rendering a single LAN device with multi-row layout:
+//  Row 1: Full Device Name & Badges
+//  Row 2: Network Address (IP and MAC)
+//  Row 3: Live Network Traffic (Upload & Download in KB/s)
 //
 
 import SwiftUI
@@ -15,10 +18,10 @@ public struct DeviceRowView: View {
     }
     
     public var body: some View {
-        HStack(spacing: 12) {
-            // Device Type Icon
+        HStack(alignment: .top, spacing: 14) {
+            // Device Type Icon (aligned to top)
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(iconBackgroundColor.opacity(0.15))
                     .frame(width: 44, height: 44)
                 
@@ -27,91 +30,110 @@ public struct DeviceRowView: View {
                     .foregroundColor(iconBackgroundColor)
             }
             
-            // Name, IP, Vendor
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(device.displayName)
-                        .font(.body)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 6) {
+                // ROW 1: Full Device Name (No truncation)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .center, spacing: 6) {
+                        Text(device.displayName)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        if device.isGateway {
+                            Text("GATEWAY")
+                                .font(.system(size: 9, weight: .heavy))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.2))
+                                .foregroundColor(.orange)
+                                .cornerRadius(4)
+                        } else if device.isLocalDevice {
+                            Text("THIS IPHONE")
+                                .font(.system(size: 9, weight: .heavy))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.2))
+                                .foregroundColor(.blue)
+                                .cornerRadius(4)
+                        }
+                    }
                     
-                    if device.isGateway {
-                        Text("GATEWAY")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.2))
-                            .foregroundColor(.orange)
-                            .cornerRadius(4)
-                    } else if device.isLocalDevice {
-                        Text("THIS IPHONE")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.2))
-                            .foregroundColor(.blue)
-                            .cornerRadius(4)
+                    if !device.vendor.isEmpty && !device.displayName.contains(device.vendor) {
+                        Text(device.vendor)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
                 }
                 
-                HStack(spacing: 6) {
-                    Text(device.ipAddress)
-                        .font(.caption)
-                        .foregroundColor(.primary)
+                // ROW 2: Network Address (IP Address & MAC Address on the next row)
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Text("IP:")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                        Text(device.ipAddress)
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.primary)
+                    }
                     
                     Text("•")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                     
-                    Text(device.vendor)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text("MAC:")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                        Text(device.macAddress)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
-                if device.latencyMs > 0 {
+                // ROW 3: Network Traffic on the next next row (Download & Upload in KB/s)
+                HStack(spacing: 10) {
+                    // Download Speed in KB/s
                     HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 6, height: 6)
-                        Text(String(format: "%.1f ms", device.latencyMs))
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        
-                        if !device.openPorts.isEmpty {
-                            Text("• \(device.openPorts.count) open ports")
-                                .font(.system(size: 11))
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundColor(.green)
+                        Text(device.formattedDownload)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(.green)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.green.opacity(0.12))
+                    .cornerRadius(6)
+                    
+                    // Upload Speed in KB/s
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundColor(.blue)
+                        Text(device.formattedUpload)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(.blue)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.blue.opacity(0.12))
+                    .cornerRadius(6)
+                    
+                    Spacer()
+                    
+                    // Response Latency / Ports
+                    if device.latencyMs > 0 {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 5, height: 5)
+                            Text(String(format: "%.1f ms", device.latencyMs))
+                                .font(.system(size: 11, design: .monospaced))
                                 .foregroundColor(.secondary)
                         }
                     }
                 }
-            }
-            
-            Spacer()
-            
-            // Live Bandwidth Metrics in KB/s
-            VStack(alignment: .trailing, spacing: 3) {
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.green)
-                    Text(device.formattedDownload)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.green)
-                }
-                
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.blue)
-                    Text(device.formattedUpload)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(.blue)
-                }
-                
-                Text(device.formattedTotalTransfer)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 6)

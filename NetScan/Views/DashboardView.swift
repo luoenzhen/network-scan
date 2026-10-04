@@ -10,12 +10,14 @@ import SwiftUI
 public struct DashboardView: View {
     @ObservedObject var viewModel: DashboardViewModel
     @ObservedObject var deviceListVM: DeviceListViewModel
+    @Binding var selectedTab: Int
     @State private var navigateToDevices = false
     @State private var navigateToPackets = false
     
-    public init(viewModel: DashboardViewModel, deviceListVM: DeviceListViewModel) {
+    public init(viewModel: DashboardViewModel, deviceListVM: DeviceListViewModel, selectedTab: Binding<Int> = .constant(0)) {
         self.viewModel = viewModel
         self.deviceListVM = deviceListVM
+        self._selectedTab = selectedTab
     }
     
     public var body: some View {
@@ -104,6 +106,7 @@ public struct DashboardView: View {
                             
                             Button(action: {
                                 deviceListVM.startScan()
+                                selectedTab = 1
                             }) {
                                 HStack(spacing: 6) {
                                     if deviceListVM.isScanning {
@@ -146,31 +149,36 @@ public struct DashboardView: View {
                         // Mini preview of first 3 active devices
                         VStack(spacing: 8) {
                             ForEach(deviceListVM.devices.prefix(3)) { dev in
-                                HStack {
-                                    Image(systemName: dev.deviceType.iconName)
-                                        .foregroundColor(.blue)
-                                        .frame(width: 24)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(dev.displayName)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .lineLimit(1)
-                                        Text(dev.ipAddress)
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Spacer()
-                                    VStack(alignment: .trailing, spacing: 2) {
-                                        Text("↓ \(dev.formattedDownload)")
-                                            .font(.caption)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.green)
-                                        Text("↑ \(dev.formattedUpload)")
-                                            .font(.caption2)
+                                Button(action: {
+                                    selectedTab = 1
+                                }) {
+                                    HStack {
+                                        Image(systemName: dev.deviceType.iconName)
                                             .foregroundColor(.blue)
+                                            .frame(width: 24)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(dev.displayName)
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .lineLimit(1)
+                                                .foregroundColor(.primary)
+                                            Text(dev.ipAddress)
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                        VStack(alignment: .trailing, spacing: 2) {
+                                            Text("↓ \(dev.formattedDownload)")
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.green)
+                                            Text("↑ \(dev.formattedUpload)")
+                                                .font(.caption2)
+                                                .foregroundColor(.blue)
+                                        }
                                     }
+                                    .padding(.vertical, 4)
                                 }
-                                .padding(.vertical, 4)
                             }
                         }
                     }
