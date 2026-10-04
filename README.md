@@ -75,7 +75,6 @@ network-scan/
 ├── Scripts/
 │   ├── build_ipa.sh                        # Bash script to package NetScan.ipa
 │   └── package_ipa.py                      # Cross-platform Python script to create ready .ipa
-├── SimulatorWeb/                           # Interactive Web Preview / Test Bench
 └── NetScan.ipa                             # Packaged AltStore-ready iOS IPA archive
 ```
 
@@ -101,23 +100,6 @@ network-scan/
 2. Open **AltStore** on your iPhone.
 3. Go to the **My Apps** tab and tap the **"+"** icon in the top-left corner.
 4. Select `NetScan.ipa`. AltStore will sign and install the app onto your home screen!
-
----
-
-## 🌐 Instant Testing: Interactive Web Simulator
-
-A complete zero-dependency iOS simulator is included in `SimulatorWeb/`, allowing you to test and interact with the app immediately from your browser:
-
-```bash
-# Start the simulator server (runs on port 3840)
-node SimulatorWeb/server.js
-```
-
-Open `http://localhost:3840` in any web browser to:
-- Test the pixel-perfect iPhone 16 Pro interface.
-- Scan for connected devices and watch their live upload and download throughput tick in **KB/s**.
-- Watch real-time packet streams, filter by protocol (TCP, UDP, DNS, HTTP, HTTPS, ICMP), and view 16-byte hex dumps.
-- Run continuous ping latency tests and port scans.
 
 ---
 
