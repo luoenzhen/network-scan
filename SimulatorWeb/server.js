@@ -185,6 +185,44 @@ let devices = [
         services: ['Remote Play Service', 'PSN Discovery'],
         isGateway: false,
         isLocalDevice: false
+    },
+    {
+        id: 'dev-8',
+        ipAddress: '192.168.1.160',
+        macAddress: 'A0:82:1F:5D:82:10',
+        hostname: 'Samsung-NeoQLED-4K',
+        vendor: 'Samsung Electronics',
+        deviceType: 'Smart TV / Streaming',
+        iconName: 'tv',
+        isOnline: true,
+        uploadSpeedKbps: 4.5,
+        downloadSpeedKbps: 512.0,
+        totalBytesSent: 8200000,
+        totalBytesReceived: 450000000,
+        latencyMs: 5.2,
+        openPorts: [8001, 8002],
+        services: ['Samsung SmartView', 'Tizen Remote Protocol'],
+        isGateway: false,
+        isLocalDevice: false
+    },
+    {
+        id: 'dev-9',
+        ipAddress: '192.168.1.135',
+        macAddress: 'DC:A6:32:8B:22:E1',
+        hostname: 'Raspberry-Pi-4B',
+        vendor: 'Raspberry Pi Foundation',
+        deviceType: 'Computer / Single-Board Server',
+        iconName: 'desktopcomputer',
+        isOnline: true,
+        uploadSpeedKbps: 8.4,
+        downloadSpeedKbps: 34.2,
+        totalBytesSent: 5400000,
+        totalBytesReceived: 18200000,
+        latencyMs: 3.1,
+        openPorts: [22, 80],
+        services: ['SSH Remote', 'HTTP Web Server / Pi-hole'],
+        isGateway: false,
+        isLocalDevice: false
     }
 ];
 

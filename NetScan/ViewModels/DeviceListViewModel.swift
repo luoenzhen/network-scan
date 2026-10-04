@@ -235,6 +235,21 @@ public class DeviceListViewModel: ObservableObject {
                 latencyMs: 5.6,
                 openPorts: [9295, 9304],
                 services: ["Remote Play", "PSN Discovery"]
+            ),
+            NetworkDevice(
+                ipAddress: "192.168.1.135",
+                macAddress: "DC:A6:32:8B:22:E1",
+                hostname: "Raspberry-Pi-4B",
+                vendor: "Raspberry Pi Foundation",
+                deviceType: .computer,
+                isOnline: true,
+                uploadSpeedKbps: 8.4,
+                downloadSpeedKbps: 34.2,
+                totalBytesSent: 5_400_000,
+                totalBytesReceived: 18_200_000,
+                latencyMs: 3.1,
+                openPorts: [22, 80],
+                services: ["SSH Remote", "HTTP Web Server"]
             )
         ]
     }

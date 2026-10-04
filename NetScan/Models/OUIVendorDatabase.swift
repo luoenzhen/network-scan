@@ -8,8 +8,18 @@
 import Foundation
 
 public struct OUIVendorDatabase {
-    // Top common hardware vendors by MAC OUI prefix (3 octets uppercase without colons or dashes)
+    // Official IEEE MAC OUI prefix database (first 3 octets, uppercase without colons or dashes)
     private static let vendorPrefixes: [String: (vendor: String, defaultType: DeviceType)] = [
+        // Raspberry Pi Foundation & Trading Ltd (All official IEEE allocations)
+        "B827EB": ("Raspberry Pi Foundation", .computer),
+        "DCA632": ("Raspberry Pi Foundation", .computer),
+        "E45F01": ("Raspberry Pi Foundation", .computer),
+        "28CDC1": ("Raspberry Pi Foundation", .computer),
+        "D83ADD": ("Raspberry Pi (RPi 4/5/Zero)", .computer),
+        "2CCF67": ("Raspberry Pi (RPi 5/CM4)", .computer),
+        "B81F5E": ("Raspberry Pi Ltd", .computer),
+        "004B12": ("Raspberry Pi Ltd", .computer),
+        
         // Apple
         "0017F2": ("Apple", .computer),
         "001C42": ("Apple / Parallels", .computer),
@@ -32,8 +42,11 @@ public struct OUIVendorDatabase {
         "BC52B7": ("Apple", .phone),
         "F01898": ("Apple", .phone),
         "F4F15A": ("Apple", .phone),
+        "A8515B": ("Apple", .phone),
+        "907240": ("Apple", .phone),
+        "186590": ("Apple", .computer),
         
-        // Samsung
+        // Samsung Electronics
         "0000F0": ("Samsung", .tv),
         "0012FB": ("Samsung", .phone),
         "00166C": ("Samsung", .phone),
@@ -47,6 +60,8 @@ public struct OUIVendorDatabase {
         "A0821F": ("Samsung", .phone),
         "C0BDD1": ("Samsung", .tv),
         "E458B8": ("Samsung", .phone),
+        "F4D9FB": ("Samsung", .tv),
+        "4C3CD7": ("Samsung", .tv),
         
         // Google / Nest
         "001A11": ("Google", .smartHome),
@@ -93,15 +108,11 @@ public struct OUIVendorDatabase {
         "709E29": ("Sony (PlayStation)", .gaming),
         "FC0F4B": ("Sony (PlayStation)", .gaming),
         
-        // Espressif / IoT / Raspberry Pi
+        // Espressif / IoT
         "18FE34": ("Espressif (ESP8266 IoT)", .smartHome),
         "240AC4": ("Espressif (ESP32 IoT)", .smartHome),
         "30AEA4": ("Espressif (ESP32 IoT)", .smartHome),
         "84F3EB": ("Espressif (ESP8266 IoT)", .smartHome),
-        "B827EB": ("Raspberry Pi Foundation", .computer),
-        "DCA632": ("Raspberry Pi Foundation", .computer),
-        "E45F01": ("Raspberry Pi Foundation", .computer),
-        "28CDC1": ("Raspberry Pi Foundation", .computer),
         
         // Printers
         "00110A": ("HP (Hewlett-Packard)", .printer),
@@ -129,40 +140,90 @@ public struct OUIVendorDatabase {
         let lowerHost = hostname.lowercased()
         let lowerVendor = vendor.lowercased()
         
+        // Raspberry Pi detection takes top priority
+        if lowerHost.contains("raspberry") || lowerHost.contains("rpi") || lowerHost.contains("octopi") ||
+           lowerHost.contains("retropie") || lowerHost.contains("dietpi") || lowerHost.contains("pihole") ||
+           lowerHost.contains("pi-hole") || lowerHost.contains("pigateway") || lowerHost.contains("pivpn") ||
+           lowerVendor.contains("raspberry") {
+            return .computer
+        }
+        
         if lowerHost.contains("iphone") || lowerHost.contains("pixel") || lowerHost.contains("galaxy") || lowerHost.contains("phone") {
             return .phone
         }
         if lowerHost.contains("ipad") || lowerHost.contains("tablet") {
             return .tablet
         }
-        if lowerHost.contains("macbook") || lowerHost.contains("imac") || lowerHost.contains("pc") || lowerHost.contains("desktop") || lowerHost.contains("laptop") || lowerHost.contains("thinkpad") {
+        if lowerHost.contains("macbook") || lowerHost.contains("imac") || lowerHost.contains("pc") ||
+           lowerHost.contains("desktop") || lowerHost.contains("laptop") || lowerHost.contains("thinkpad") {
             return .computer
         }
-        if lowerHost.contains("router") || lowerHost.contains("gateway") || lowerHost.contains("ap-") || lowerHost.contains("mesh") || lowerHost.contains("openwrt") {
+        if lowerHost.contains("router") || lowerHost.contains("gateway") || lowerHost.contains("ap-") ||
+           lowerHost.contains("mesh") || lowerHost.contains("openwrt") {
             return .router
         }
-        if lowerHost.contains("tv") || lowerHost.contains("roku") || lowerHost.contains("chromecast") || lowerHost.contains("bravia") || lowerHost.contains("appletv") {
+        if lowerHost.contains("tv") || lowerHost.contains("roku") || lowerHost.contains("chromecast") ||
+           lowerHost.contains("bravia") || lowerHost.contains("appletv") {
             return .tv
         }
-        if lowerHost.contains("xbox") || lowerHost.contains("playstation") || lowerHost.contains("ps5") || lowerHost.contains("ps4") || lowerHost.contains("nintendo") || lowerHost.contains("switch") {
+        if lowerHost.contains("xbox") || lowerHost.contains("playstation") || lowerHost.contains("ps5") ||
+           lowerHost.contains("ps4") || lowerHost.contains("nintendo") || lowerHost.contains("switch") {
             return .gaming
         }
         if lowerHost.contains("printer") || lowerHost.contains("epson") || lowerHost.contains("laserjet") || lowerHost.contains("brother") {
             return .printer
         }
-        if lowerHost.contains("echo") || lowerHost.contains("alexa") || lowerHost.contains("nest") || lowerHost.contains("homepod") || lowerHost.contains("bulb") || lowerHost.contains("kasa") || lowerHost.contains("tasmota") || lowerHost.contains("esp32") {
+        if lowerHost.contains("echo") || lowerHost.contains("alexa") || lowerHost.contains("nest") ||
+           lowerHost.contains("homepod") || lowerHost.contains("bulb") || lowerHost.contains("kasa") ||
+           lowerHost.contains("tasmota") || lowerHost.contains("esp32") || lowerHost.contains("esp8266") {
             return .smartHome
         }
         
         if lowerVendor.contains("apple") { return .phone }
         if lowerVendor.contains("samsung") { return .phone }
         if lowerVendor.contains("tp-link") || lowerVendor.contains("netgear") || lowerVendor.contains("asus") { return .router }
-        if lowerVendor.contains("raspberry") { return .computer }
         if lowerVendor.contains("espressif") { return .smartHome }
         if lowerVendor.contains("hp") || lowerVendor.contains("canon") || lowerVendor.contains("epson") || lowerVendor.contains("brother") { return .printer }
         if lowerVendor.contains("amazon") { return .smartHome }
         if lowerVendor.contains("sony") { return .tv }
         
         return .unknown
+    }
+    
+    public static func identifyDevice(macAddress: String?, hostname: String) -> (vendor: String, deviceType: DeviceType) {
+        // 1. Direct MAC OUI lookup
+        if let mac = macAddress, let res = lookup(macAddress: mac) {
+            let type = inferDeviceType(hostname: hostname, vendor: res.vendor)
+            return (res.vendor, type == .unknown ? res.defaultType : type)
+        }
+        
+        // 2. Hostname-based detection
+        let lowerHost = hostname.lowercased()
+        if lowerHost.contains("raspberry") || lowerHost.contains("rpi") || lowerHost.contains("octopi") ||
+           lowerHost.contains("retropie") || lowerHost.contains("dietpi") || lowerHost.contains("pihole") ||
+           lowerHost.contains("pi-hole") {
+            return ("Raspberry Pi Foundation", .computer)
+        }
+        if lowerHost.contains("apple") || lowerHost.contains("iphone") || lowerHost.contains("ipad") ||
+           lowerHost.contains("macbook") || lowerHost.contains("imac") || lowerHost.contains("airplay") {
+            return ("Apple Inc.", inferDeviceType(hostname: hostname, vendor: "Apple"))
+        }
+        if lowerHost.contains("samsung") || lowerHost.contains("galaxy") {
+            return ("Samsung Electronics", inferDeviceType(hostname: hostname, vendor: "Samsung"))
+        }
+        if lowerHost.contains("google") || lowerHost.contains("nest") || lowerHost.contains("chromecast") {
+            return ("Google LLC", inferDeviceType(hostname: hostname, vendor: "Google"))
+        }
+        if lowerHost.contains("esp32") || lowerHost.contains("esp8266") || lowerHost.contains("tasmota") {
+            return ("Espressif Systems", .smartHome)
+        }
+        if lowerHost.contains("router") || lowerHost.contains("gateway") {
+            return ("Network Gateway", .router)
+        }
+        if lowerHost.contains("printer") || lowerHost.contains("laserjet") || lowerHost.contains("officejet") {
+            return ("Network Printer", .printer)
+        }
+        
+        return ("Network Device", .unknown)
     }
 }
