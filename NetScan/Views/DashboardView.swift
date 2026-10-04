@@ -105,8 +105,10 @@ public struct DashboardView: View {
                             Spacer()
                             
                             Button(action: {
-                                deviceListVM.startScan()
                                 selectedTab = 1
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    deviceListVM.startScan()
+                                }
                             }) {
                                 HStack(spacing: 6) {
                                     if deviceListVM.isScanning {

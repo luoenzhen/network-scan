@@ -34,7 +34,7 @@ public enum DeviceType: String, Codable, CaseIterable {
 }
 
 public struct NetworkDevice: Identifiable, Codable, Equatable {
-    public let id: UUID
+    public var id: UUID
     public var ipAddress: String
     public var macAddress: String
     public var hostname: String

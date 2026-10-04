@@ -79,25 +79,43 @@ public class DeviceListViewModel: ObservableObject {
         SubnetScannerService.shared.scanSubnet(
             interface: interface,
             onProgress: { [weak self] progress in
-                self?.scanProgress = progress
+                DispatchQueue.main.async {
+                    self?.scanProgress = progress
+                }
             },
             onDeviceFound: { [weak self] newDevice in
                 guard let self = self else { return }
-                if let index = self.devices.firstIndex(where: { $0.ipAddress == newDevice.ipAddress }) {
-                    self.devices[index] = newDevice
-                } else {
-                    self.devices.append(newDevice)
+                DispatchQueue.main.async {
+                    if let index = self.devices.firstIndex(where: { $0.ipAddress == newDevice.ipAddress }) {
+                        var updated = newDevice
+                        updated.id = self.devices[index].id
+                        self.devices[index] = updated
+                    } else {
+                        self.devices.append(newDevice)
+                    }
                 }
             },
             onCompletion: { [weak self] allDevices in
                 guard let self = self else { return }
-                self.isScanning = false
-                self.scanProgress = 1.0
-                self.lastScanTimestamp = Date()
-                if !allDevices.isEmpty {
-                    self.devices = allDevices
+                DispatchQueue.main.async {
+                    self.isScanning = false
+                    self.scanProgress = 1.0
+                    self.lastScanTimestamp = Date()
+                    if !allDevices.isEmpty {
+                        var updatedList = self.devices
+                        for dev in allDevices {
+                            if let idx = updatedList.firstIndex(where: { $0.ipAddress == dev.ipAddress }) {
+                                var u = dev
+                                u.id = updatedList[idx].id
+                                updatedList[idx] = u
+                            } else {
+                                updatedList.append(dev)
+                            }
+                        }
+                        self.devices = updatedList
+                    }
+                    self.enrichVendorsOnline()
                 }
-                self.enrichVendorsOnline()
             }
         )
     }

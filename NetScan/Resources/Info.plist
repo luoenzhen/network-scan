@@ -34,6 +34,9 @@
 		<string>_ipp._tcp</string>
 		<string>_companion-link._tcp</string>
 		<string>_raop._tcp</string>
+		<string>_ssh._tcp</string>
+		<string>_workstation._tcp</string>
+		<string>_device-info._tcp</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

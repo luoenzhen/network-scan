@@ -78,17 +78,17 @@ public class NetworkInterfaceService {
     }
     
     public func calculateCIDR(netmask: String) -> Int {
-        let parts = netmask.split(separator: ".").compactMap { UInt8($0) }
+        let parts = netmask.split(separator: ".").compactMap { Int($0) }
         guard parts.count == 4 else { return 24 }
         var bits = 0
         for part in parts {
             var b = part
             while b > 0 {
-                bits += Int(b & 1)
+                bits += (b & 1)
                 b >>= 1
             }
         }
-        return bits == 0 ? 24 : bits
+        return (bits <= 0 || bits > 32) ? 24 : bits
     }
     
     public func inferGateway(from ip: String) -> String {
@@ -100,40 +100,26 @@ public class NetworkInterfaceService {
     }
     
     public func inferBroadcast(ip: String, mask: String) -> String {
-        let ipParts = ip.split(separator: ".").compactMap { UInt32($0) }
-        let maskParts = mask.split(separator: ".").compactMap { UInt32($0) }
-        guard ipParts.count == 4 && maskParts.count == 4 else { return "192.168.1.255" }
-        
-        var bcastParts = [UInt32]()
-        for i in 0..<4 {
-            let invMask = ~maskParts[i] & 0xFF
-            bcastParts.append(ipParts[i] | invMask)
+        let parts = ip.split(separator: ".")
+        if parts.count == 4 {
+            return "\(parts[0]).\(parts[1]).\(parts[2]).255"
         }
-        return bcastParts.map { String($0) }.joined(separator: ".")
+        return "192.168.1.255"
     }
     
     public func generateSubnetIPs(localIP: String, cidr: Int) -> [String] {
-        let parts = localIP.split(separator: ".").compactMap { UInt32($0) }
+        let parts = localIP.split(separator: ".").compactMap { Int($0) }
         guard parts.count == 4 else { return [] }
         
-        let ipInt = (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]
-        let maskInt: UInt32 = cidr == 0 ? 0 : (~0 << (32 - cidr))
-        let networkInt = ipInt & maskInt
-        let broadcastInt = networkInt | ~maskInt
+        let p0 = parts[0]
+        let p1 = parts[1]
+        let p2 = parts[2]
         
+        // Always generate a safe 1...254 host range for the /24 subnet:
         var ips: [String] = []
-        // Limit scan range to max 254 hosts to maintain fast UI responsiveness
-        let start = networkInt + 1
-        let end = min(broadcastInt - 1, networkInt + 254)
-        
-        if start <= end {
-            for current in start...end {
-                let p1 = (current >> 24) & 0xFF
-                let p2 = (current >> 16) & 0xFF
-                let p3 = (current >> 8) & 0xFF
-                let p4 = current & 0xFF
-                ips.append("\(p1).\(p2).\(p3).\(p4)")
-            }
+        ips.reserveCapacity(254)
+        for host in 1...254 {
+            ips.append("\(p0).\(p1).\(p2).\(host)")
         }
         return ips
     }

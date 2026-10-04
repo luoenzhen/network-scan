@@ -27,121 +27,128 @@ public class SubnetScannerService {
         onCompletion: @escaping ([NetworkDevice]) -> Void
     ) {
         isCancelled = false
-        let ips = NetworkInterfaceService.shared.generateSubnetIPs(
-            localIP: interface.ipAddress,
-            cidr: interface.cidrPrefix
-        )
         
-        guard !ips.isEmpty else {
-            onCompletion([])
-            return
-        }
-        
-        var discoveredDevices: [NetworkDevice] = []
-        let lock = NSLock()
-        let group = DispatchGroup()
-        let totalCount = Double(ips.count)
-        var scannedCount = 0.0
-        
-        // Immediately register local iPhone and Gateway
-        let localDevice = NetworkDevice(
-            ipAddress: interface.ipAddress,
-            macAddress: "Self (Current Device)",
-            hostname: "iPhone",
-            vendor: "Apple Inc.",
-            deviceType: .phone,
-            isOnline: true,
-            uploadSpeedKbps: 14.5,
-            downloadSpeedKbps: 42.8,
-            totalBytesSent: 1_250_000,
-            totalBytesReceived: 3_840_000,
-            latencyMs: 1.2,
-            openPorts: [5353],
-            services: ["mDNS"],
-            isLocalDevice: true,
-            isGateway: false
-        )
-        
-        let gatewayDevice = NetworkDevice(
-            ipAddress: interface.gatewayIP,
-            macAddress: resolveARPMACAddress(ip: interface.gatewayIP) ?? "Router Gateway",
-            hostname: "Router.local",
-            vendor: "TP-Link / Wi-Fi AP",
-            deviceType: .router,
-            isOnline: true,
-            uploadSpeedKbps: 128.4,
-            downloadSpeedKbps: 450.2,
-            totalBytesSent: 15_800_000,
-            totalBytesReceived: 45_200_000,
-            latencyMs: 2.4,
-            openPorts: [53, 80, 443],
-            services: ["DNS", "HTTP Admin", "HTTPS"],
-            isLocalDevice: false,
-            isGateway: true
-        )
-        
-        lock.lock()
-        discoveredDevices.append(gatewayDevice)
-        discoveredDevices.append(localDevice)
-        lock.unlock()
-        
-        DispatchQueue.main.async {
-            onDeviceFound(gatewayDevice)
-            onDeviceFound(localDevice)
-        }
-        
-        // Batch scanning with concurrency throttle (16 at a time)
-        let semaphore = DispatchSemaphore(value: 16)
-        
-        for ip in ips {
-            if isCancelled { break }
-            if ip == interface.ipAddress || ip == interface.gatewayIP {
-                lock.lock()
-                scannedCount += 1.0
-                let progress = scannedCount / totalCount
-                lock.unlock()
-                DispatchQueue.main.async { onProgress(progress) }
-                continue
+        // Dispatch entire scanning process to background queue so the UI thread NEVER blocks!
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            let ips = NetworkInterfaceService.shared.generateSubnetIPs(
+                localIP: interface.ipAddress,
+                cidr: interface.cidrPrefix
+            )
+            
+            guard !ips.isEmpty else {
+                DispatchQueue.main.async { onCompletion([]) }
+                return
             }
             
-            group.enter()
-            semaphore.wait()
+            var discoveredDevices: [NetworkDevice] = []
+            let lock = NSLock()
+            let group = DispatchGroup()
+            let totalCount = Double(ips.count)
+            var scannedCount = 0.0
             
-            scanQueue.async { [weak self] in
-                guard let self = self, !self.isCancelled else {
-                    semaphore.signal()
-                    group.leave()
-                    return
-                }
+            // Immediately register local iPhone and Gateway
+            let localDevice = NetworkDevice(
+                ipAddress: interface.ipAddress,
+                macAddress: "Self (Current Device)",
+                hostname: "iPhone",
+                vendor: "Apple Inc.",
+                deviceType: .phone,
+                isOnline: true,
+                uploadSpeedKbps: 14.5,
+                downloadSpeedKbps: 42.8,
+                totalBytesSent: 1_250_000,
+                totalBytesReceived: 3_840_000,
+                latencyMs: 1.2,
+                openPorts: [5353],
+                services: ["mDNS"],
+                isLocalDevice: true,
+                isGateway: false
+            )
+            
+            let gatewayDevice = NetworkDevice(
+                ipAddress: interface.gatewayIP,
+                macAddress: self.resolveARPMACAddress(ip: interface.gatewayIP) ?? "Router Gateway",
+                hostname: "Router.local",
+                vendor: "TP-Link / Wi-Fi AP",
+                deviceType: .router,
+                isOnline: true,
+                uploadSpeedKbps: 128.4,
+                downloadSpeedKbps: 450.2,
+                totalBytesSent: 15_800_000,
+                totalBytesReceived: 45_200_000,
+                latencyMs: 2.4,
+                openPorts: [53, 80, 443],
+                services: ["DNS", "HTTP Admin", "HTTPS"],
+                isLocalDevice: false,
+                isGateway: true
+            )
+            
+            lock.lock()
+            discoveredDevices.append(gatewayDevice)
+            discoveredDevices.append(localDevice)
+            lock.unlock()
+            
+            DispatchQueue.main.async {
+                onDeviceFound(gatewayDevice)
+                onDeviceFound(localDevice)
+            }
+            
+            // Safe concurrency limit
+            let semaphore = DispatchSemaphore(value: 8)
+            
+            for ip in ips {
+                if self.isCancelled { break }
                 
-                self.probeHost(ip: ip) { device in
-                    if let dev = device {
-                        lock.lock()
-                        discoveredDevices.append(dev)
-                        lock.unlock()
-                        DispatchQueue.main.async {
-                            onDeviceFound(dev)
-                        }
-                    }
-                    
+                if ip == interface.ipAddress || ip == interface.gatewayIP {
                     lock.lock()
                     scannedCount += 1.0
                     let progress = scannedCount / totalCount
                     lock.unlock()
-                    
-                    DispatchQueue.main.async {
-                        onProgress(progress)
+                    DispatchQueue.main.async { onProgress(progress) }
+                    continue
+                }
+                
+                group.enter()
+                semaphore.wait() // Safely waits on background worker thread
+                
+                self.scanQueue.async { [weak self] in
+                    guard let self = self, !self.isCancelled else {
+                        semaphore.signal()
+                        group.leave()
+                        return
                     }
                     
-                    semaphore.signal()
-                    group.leave()
+                    self.probeHost(ip: ip) { device in
+                        if let dev = device {
+                            lock.lock()
+                            discoveredDevices.append(dev)
+                            lock.unlock()
+                            DispatchQueue.main.async {
+                                onDeviceFound(dev)
+                            }
+                        }
+                        
+                        lock.lock()
+                        scannedCount += 1.0
+                        let progress = scannedCount / totalCount
+                        lock.unlock()
+                        
+                        DispatchQueue.main.async {
+                            onProgress(progress)
+                        }
+                        
+                        semaphore.signal()
+                        group.leave()
+                    }
                 }
             }
-        }
-        
-        group.notify(queue: .main) {
-            onProgress(1.0)
-            onCompletion(discoveredDevices)
+            
+            group.notify(queue: .main) {
+                onProgress(1.0)
+                onCompletion(discoveredDevices)
+            }
         }
     }
     
@@ -151,8 +158,6 @@ public class SubnetScannerService {
     
     private func probeHost(ip: String, completion: @escaping (NetworkDevice?) -> Void) {
         let startTime = CFAbsoluteTimeGetCurrent()
-        
-        // Fast probe via TCP connect to common port 80 or 443 or 53
         let host = NWEndpoint.Host(ip)
         guard let port = NWEndpoint.Port(rawValue: 80) else {
             completion(nil)
@@ -162,42 +167,58 @@ public class SubnetScannerService {
         let parameters = NWParameters.tcp
         parameters.prohibitedInterfaceTypes = [.cellular]
         let connection = NWConnection(host: host, port: port, using: parameters)
-        var hasResponded = false
         
-        let timeoutWorkItem = DispatchWorkItem {
-            if !hasResponded {
-                hasResponded = true
-                connection.cancel()
-                completion(nil)
+        var hasFinished = false
+        let lock = NSLock()
+        var timeoutWorkItem: DispatchWorkItem?
+        
+        let finish: (NetworkDevice?) -> Void = { device in
+            lock.lock()
+            guard !hasFinished else {
+                lock.unlock()
+                return
             }
+            hasFinished = true
+            lock.unlock()
+            
+            timeoutWorkItem?.cancel()
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+            completion(device)
         }
         
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.35, execute: timeoutWorkItem)
+        let workItem = DispatchWorkItem {
+            finish(nil)
+        }
+        timeoutWorkItem = workItem
+        
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.35, execute: workItem)
         
         connection.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
             switch state {
             case .ready:
-                if !hasResponded {
-                    hasResponded = true
-                    timeoutWorkItem.cancel()
-                    connection.cancel()
-                    let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                    let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: 80)
-                    completion(device)
-                }
-            case .failed, .cancelled:
-                break
-            case .waiting:
-                // Port closed or rejected immediately indicates host is active!
-                if !hasResponded {
-                    hasResponded = true
-                    timeoutWorkItem.cancel()
-                    connection.cancel()
-                    let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+                let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: 80)
+                finish(device)
+            case .waiting(let error):
+                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+                let errStr = error.debugDescription
+                if errStr.contains("61") || errStr.contains("refused") {
                     let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: nil)
-                    completion(device)
+                    finish(device)
                 }
+            case .failed(let error):
+                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+                let errStr = error.debugDescription
+                if errStr.contains("61") || errStr.contains("refused") {
+                    let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: nil)
+                    finish(device)
+                } else {
+                    finish(nil)
+                }
+            case .cancelled:
+                finish(nil)
             default:
                 break
             }

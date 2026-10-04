@@ -15,7 +15,7 @@ public struct OUIVendorDatabase {
     private static var fullDatabase: [String: String]? = nil
     private static var isDatabaseLoading = false
     private static var onlineCache: [String: (vendor: String, defaultType: DeviceType)] = [:]
-    private static let lock = NSLock()
+    private static let lock = NSRecursiveLock()
     
     // Built-in high priority vendor prefixes for instant offline recognition
     private static let vendorPrefixes: [String: (vendor: String, defaultType: DeviceType)] = [
