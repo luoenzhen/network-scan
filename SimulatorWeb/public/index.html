@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NetScan - iOS Simulator & Diagnostic Suite</title>
+  <link rel="icon" type="image/png" href="icon.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -31,7 +32,10 @@
         <!-- TAB 1: DASHBOARD -->
         <div class="tab-content active" id="tab-dashboard">
           <div class="nav-bar">
-            <h1 class="nav-title">NetScan</h1>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <img src="icon.png" alt="NetScan Logo" style="width: 28px; height: 28px; border-radius: 7px; box-shadow: 0 2px 8px rgba(0,240,255,0.3);">
+              <h1 class="nav-title">NetScan</h1>
+            </div>
             <button class="nav-btn" id="btnRefreshInfo"><i class="fa-solid fa-rotate"></i></button>
           </div>
 
