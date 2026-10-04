@@ -1,0 +1,455 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA0100012C00000100000001 /* NetScanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100012C00000100000001 /* NetScanApp.swift */; };
+		AA0100022C00000100000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100022C00000100000001 /* AppDelegate.swift */; };
+		AA0100032C00000100000001 /* NetworkDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100032C00000100000001 /* NetworkDevice.swift */; };
+		AA0100042C00000100000001 /* NetworkPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100042C00000100000001 /* NetworkPacket.swift */; };
+		AA0100052C00000100000001 /* NetworkInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100052C00000100000001 /* NetworkInterface.swift */; };
+		AA0100062C00000100000001 /* PortScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100062C00000100000001 /* PortScanResult.swift */; };
+		AA0100072C00000100000001 /* TrafficMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100072C00000100000001 /* TrafficMetric.swift */; };
+		AA0100082C00000100000001 /* OUIVendorDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100082C00000100000001 /* OUIVendorDatabase.swift */; };
+		AA0100092C00000100000001 /* NetworkInterfaceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100092C00000100000001 /* NetworkInterfaceService.swift */; };
+		AA01000A2C00000100000001 /* SubnetScannerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01000A2C00000100000001 /* SubnetScannerService.swift */; };
+		AA01000B2C00000100000001 /* BonjourDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01000B2C00000100000001 /* BonjourDiscoveryService.swift */; };
+		AA01000C2C00000100000001 /* TrafficMonitorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01000C2C00000100000001 /* TrafficMonitorService.swift */; };
+		AA01000D2C00000100000001 /* PacketInspectorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01000D2C00000100000001 /* PacketInspectorService.swift */; };
+		AA01000E2C00000100000001 /* PortScannerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01000E2C00000100000001 /* PortScannerService.swift */; };
+		AA01000F2C00000100000001 /* PingDiagnosticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01000F2C00000100000001 /* PingDiagnosticService.swift */; };
+		AA0100102C00000100000001 /* WakeOnLANService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100102C00000100000001 /* WakeOnLANService.swift */; };
+		AA0100112C00000100000001 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100112C00000100000001 /* DashboardViewModel.swift */; };
+		AA0100122C00000100000001 /* DeviceListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100122C00000100000001 /* DeviceListViewModel.swift */; };
+		AA0100132C00000100000001 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100132C00000100000001 /* DeviceDetailViewModel.swift */; };
+		AA0100142C00000100000001 /* PacketStreamViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100142C00000100000001 /* PacketStreamViewModel.swift */; };
+		AA0100152C00000100000001 /* NetworkToolsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100152C00000100000001 /* NetworkToolsViewModel.swift */; };
+		AA0100162C00000100000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100162C00000100000001 /* MainTabView.swift */; };
+		AA0100172C00000100000001 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100172C00000100000001 /* DashboardView.swift */; };
+		AA0100182C00000100000001 /* NetworkSpeedGaugeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100182C00000100000001 /* NetworkSpeedGaugeView.swift */; };
+		AA0100192C00000100000001 /* DeviceListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100192C00000100000001 /* DeviceListView.swift */; };
+		AA01001A2C00000100000001 /* DeviceRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01001A2C00000100000001 /* DeviceRowView.swift */; };
+		AA01001B2C00000100000001 /* DeviceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01001B2C00000100000001 /* DeviceDetailView.swift */; };
+		AA01001C2C00000100000001 /* PacketInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01001C2C00000100000001 /* PacketInspectorView.swift */; };
+		AA01001D2C00000100000001 /* PacketRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01001D2C00000100000001 /* PacketRowView.swift */; };
+		AA01001E2C00000100000001 /* PacketDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01001E2C00000100000001 /* PacketDetailSheet.swift */; };
+		AA01001F2C00000100000001 /* NetworkToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01001F2C00000100000001 /* NetworkToolsView.swift */; };
+		AA0100202C00000100000001 /* PingToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100202C00000100000001 /* PingToolView.swift */; };
+		AA0100212C00000100000001 /* PortScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100212C00000100000001 /* PortScannerView.swift */; };
+		AA0100222C00000100000001 /* WakeOnLANView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100222C00000100000001 /* WakeOnLANView.swift */; };
+		AA0100232C00000100000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100232C00000100000001 /* SettingsView.swift */; };
+		AA0100242C00000100000001 /* AltStoreInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100242C00000100000001 /* AltStoreInfoView.swift */; };
+		AA0100252C00000100000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB0100252C00000100000001 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		990100002C00000100000001 /* NetScan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NetScan.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB0100012C00000100000001 /* NetScanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetScanApp.swift; sourceTree = "<group>"; };
+		BB0100022C00000100000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		BB0100032C00000100000001 /* NetworkDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDevice.swift; sourceTree = "<group>"; };
+		BB0100042C00000100000001 /* NetworkPacket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPacket.swift; sourceTree = "<group>"; };
+		BB0100052C00000100000001 /* NetworkInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterface.swift; sourceTree = "<group>"; };
+		BB0100062C00000100000001 /* PortScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortScanResult.swift; sourceTree = "<group>"; };
+		BB0100072C00000100000001 /* TrafficMetric.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficMetric.swift; sourceTree = "<group>"; };
+		BB0100082C00000100000001 /* OUIVendorDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OUIVendorDatabase.swift; sourceTree = "<group>"; };
+		BB0100092C00000100000001 /* NetworkInterfaceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterfaceService.swift; sourceTree = "<group>"; };
+		BB01000A2C00000100000001 /* SubnetScannerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubnetScannerService.swift; sourceTree = "<group>"; };
+		BB01000B2C00000100000001 /* BonjourDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BonjourDiscoveryService.swift; sourceTree = "<group>"; };
+		BB01000C2C00000100000001 /* TrafficMonitorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficMonitorService.swift; sourceTree = "<group>"; };
+		BB01000D2C00000100000001 /* PacketInspectorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketInspectorService.swift; sourceTree = "<group>"; };
+		BB01000E2C00000100000001 /* PortScannerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortScannerService.swift; sourceTree = "<group>"; };
+		BB01000F2C00000100000001 /* PingDiagnosticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingDiagnosticService.swift; sourceTree = "<group>"; };
+		BB0100102C00000100000001 /* WakeOnLANService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeOnLANService.swift; sourceTree = "<group>"; };
+		BB0100112C00000100000001 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		BB0100122C00000100000001 /* DeviceListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceListViewModel.swift; sourceTree = "<group>"; };
+		BB0100132C00000100000001 /* DeviceDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailViewModel.swift; sourceTree = "<group>"; };
+		BB0100142C00000100000001 /* PacketStreamViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketStreamViewModel.swift; sourceTree = "<group>"; };
+		BB0100152C00000100000001 /* NetworkToolsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkToolsViewModel.swift; sourceTree = "<group>"; };
+		BB0100162C00000100000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		BB0100172C00000100000001 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		BB0100182C00000100000001 /* NetworkSpeedGaugeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSpeedGaugeView.swift; sourceTree = "<group>"; };
+		BB0100192C00000100000001 /* DeviceListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceListView.swift; sourceTree = "<group>"; };
+		BB01001A2C00000100000001 /* DeviceRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceRowView.swift; sourceTree = "<group>"; };
+		BB01001B2C00000100000001 /* DeviceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailView.swift; sourceTree = "<group>"; };
+		BB01001C2C00000100000001 /* PacketInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketInspectorView.swift; sourceTree = "<group>"; };
+		BB01001D2C00000100000001 /* PacketRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketRowView.swift; sourceTree = "<group>"; };
+		BB01001E2C00000100000001 /* PacketDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketDetailSheet.swift; sourceTree = "<group>"; };
+		BB01001F2C00000100000001 /* NetworkToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkToolsView.swift; sourceTree = "<group>"; };
+		BB0100202C00000100000001 /* PingToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingToolView.swift; sourceTree = "<group>"; };
+		BB0100212C00000100000001 /* PortScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortScannerView.swift; sourceTree = "<group>"; };
+		BB0100222C00000100000001 /* WakeOnLANView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeOnLANView.swift; sourceTree = "<group>"; };
+		BB0100232C00000100000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BB0100242C00000100000001 /* AltStoreInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltStoreInfoView.swift; sourceTree = "<group>"; };
+		BB0100252C00000100000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BB0100262C00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		BB0100272C00000100000001 /* NetScan.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetScan.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		880100002C00000100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		000100002C00000100000001 = {
+			isa = PBXGroup;
+			children = (
+				000100012C00000100000001 /* NetScan */,
+				000100082C00000100000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000100012C00000100000001 /* NetScan */ = {
+			isa = PBXGroup;
+			children = (
+				000100022C00000100000001 /* App */,
+				000100032C00000100000001 /* Models */,
+				000100042C00000100000001 /* Services */,
+				000100052C00000100000001 /* ViewModels */,
+				000100062C00000100000001 /* Views */,
+				000100072C00000100000001 /* Resources */,
+			);
+			path = NetScan;
+			sourceTree = "<group>";
+		};
+		000100022C00000100000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				BB0100012C00000100000001 /* NetScanApp.swift */,
+				BB0100022C00000100000001 /* AppDelegate.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		000100032C00000100000001 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BB0100032C00000100000001 /* NetworkDevice.swift */,
+				BB0100042C00000100000001 /* NetworkPacket.swift */,
+				BB0100052C00000100000001 /* NetworkInterface.swift */,
+				BB0100062C00000100000001 /* PortScanResult.swift */,
+				BB0100072C00000100000001 /* TrafficMetric.swift */,
+				BB0100082C00000100000001 /* OUIVendorDatabase.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		000100042C00000100000001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				BB0100092C00000100000001 /* NetworkInterfaceService.swift */,
+				BB01000A2C00000100000001 /* SubnetScannerService.swift */,
+				BB01000B2C00000100000001 /* BonjourDiscoveryService.swift */,
+				BB01000C2C00000100000001 /* TrafficMonitorService.swift */,
+				BB01000D2C00000100000001 /* PacketInspectorService.swift */,
+				BB01000E2C00000100000001 /* PortScannerService.swift */,
+				BB01000F2C00000100000001 /* PingDiagnosticService.swift */,
+				BB0100102C00000100000001 /* WakeOnLANService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		000100052C00000100000001 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				BB0100112C00000100000001 /* DashboardViewModel.swift */,
+				BB0100122C00000100000001 /* DeviceListViewModel.swift */,
+				BB0100132C00000100000001 /* DeviceDetailViewModel.swift */,
+				BB0100142C00000100000001 /* PacketStreamViewModel.swift */,
+				BB0100152C00000100000001 /* NetworkToolsViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		000100062C00000100000001 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				BB0100162C00000100000001 /* MainTabView.swift */,
+				BB0100172C00000100000001 /* DashboardView.swift */,
+				BB0100182C00000100000001 /* NetworkSpeedGaugeView.swift */,
+				BB0100192C00000100000001 /* DeviceListView.swift */,
+				BB01001A2C00000100000001 /* DeviceRowView.swift */,
+				BB01001B2C00000100000001 /* DeviceDetailView.swift */,
+				BB01001C2C00000100000001 /* PacketInspectorView.swift */,
+				BB01001D2C00000100000001 /* PacketRowView.swift */,
+				BB01001E2C00000100000001 /* PacketDetailSheet.swift */,
+				BB01001F2C00000100000001 /* NetworkToolsView.swift */,
+				BB0100202C00000100000001 /* PingToolView.swift */,
+				BB0100212C00000100000001 /* PortScannerView.swift */,
+				BB0100222C00000100000001 /* WakeOnLANView.swift */,
+				BB0100232C00000100000001 /* SettingsView.swift */,
+				BB0100242C00000100000001 /* AltStoreInfoView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		000100072C00000100000001 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				BB0100252C00000100000001 /* Assets.xcassets */,
+				BB0100262C00000100000001 /* Info.plist */,
+				BB0100272C00000100000001 /* NetScan.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		000100082C00000100000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				990100002C00000100000001 /* NetScan.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		770100002C00000100000001 /* NetScan */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 440100002C00000100000001 /* Build configuration list for PBXNativeTarget "NetScan" */;
+			buildPhases = (
+				660100002C00000100000001 /* Sources */,
+				880100002C00000100000001 /* Frameworks */,
+				550100002C00000100000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NetScan;
+			productName = NetScan;
+			productReference = 990100002C00000100000001 /* NetScan.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		110100002C00000100000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					770100002C00000100000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 220100002C00000100000001 /* Build configuration list for PBXProject "NetScan" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 000100002C00000100000001;
+			productRefGroup = 000100082C00000100000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				770100002C00000100000001 /* NetScan */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		550100002C00000100000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0100252C00000100000001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		660100002C00000100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0100012C00000100000001 /* NetScanApp.swift in Sources */,
+				AA0100022C00000100000001 /* AppDelegate.swift in Sources */,
+				AA0100032C00000100000001 /* NetworkDevice.swift in Sources */,
+				AA0100042C00000100000001 /* NetworkPacket.swift in Sources */,
+				AA0100052C00000100000001 /* NetworkInterface.swift in Sources */,
+				AA0100062C00000100000001 /* PortScanResult.swift in Sources */,
+				AA0100072C00000100000001 /* TrafficMetric.swift in Sources */,
+				AA0100082C00000100000001 /* OUIVendorDatabase.swift in Sources */,
+				AA0100092C00000100000001 /* NetworkInterfaceService.swift in Sources */,
+				AA01000A2C00000100000001 /* SubnetScannerService.swift in Sources */,
+				AA01000B2C00000100000001 /* BonjourDiscoveryService.swift in Sources */,
+				AA01000C2C00000100000001 /* TrafficMonitorService.swift in Sources */,
+				AA01000D2C00000100000001 /* PacketInspectorService.swift in Sources */,
+				AA01000E2C00000100000001 /* PortScannerService.swift in Sources */,
+				AA01000F2C00000100000001 /* PingDiagnosticService.swift in Sources */,
+				AA0100102C00000100000001 /* WakeOnLANService.swift in Sources */,
+				AA0100112C00000100000001 /* DashboardViewModel.swift in Sources */,
+				AA0100122C00000100000001 /* DeviceListViewModel.swift in Sources */,
+				AA0100132C00000100000001 /* DeviceDetailViewModel.swift in Sources */,
+				AA0100142C00000100000001 /* PacketStreamViewModel.swift in Sources */,
+				AA0100152C00000100000001 /* NetworkToolsViewModel.swift in Sources */,
+				AA0100162C00000100000001 /* MainTabView.swift in Sources */,
+				AA0100172C00000100000001 /* DashboardView.swift in Sources */,
+				AA0100182C00000100000001 /* NetworkSpeedGaugeView.swift in Sources */,
+				AA0100192C00000100000001 /* DeviceListView.swift in Sources */,
+				AA01001A2C00000100000001 /* DeviceRowView.swift in Sources */,
+				AA01001B2C00000100000001 /* DeviceDetailView.swift in Sources */,
+				AA01001C2C00000100000001 /* PacketInspectorView.swift in Sources */,
+				AA01001D2C00000100000001 /* PacketRowView.swift in Sources */,
+				AA01001E2C00000100000001 /* PacketDetailSheet.swift in Sources */,
+				AA01001F2C00000100000001 /* NetworkToolsView.swift in Sources */,
+				AA0100202C00000100000001 /* PingToolView.swift in Sources */,
+				AA0100212C00000100000001 /* PortScannerView.swift in Sources */,
+				AA0100222C00000100000001 /* WakeOnLANView.swift in Sources */,
+				AA0100232C00000100000001 /* SettingsView.swift in Sources */,
+				AA0100242C00000100000001 /* AltStoreInfoView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		330100012C00000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		330100022C00000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		330100032C00000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NetScan/Resources/NetScan.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NetScan/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NetScan;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.netscan.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		330100042C00000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NetScan/Resources/NetScan.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NetScan/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NetScan;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.netscan.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		220100002C00000100000001 /* Build configuration list for PBXProject "NetScan" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				330100012C00000100000001 /* Debug */,
+				330100022C00000100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		440100002C00000100000001 /* Build configuration list for PBXNativeTarget "NetScan" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				330100032C00000100000001 /* Debug */,
+				330100042C00000100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 110100002C00000100000001 /* Project object */;
+}

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NetScan - iOS Simulator & Diagnostic Suite</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="simulator-wrapper">
+    <!-- iPhone 16 Pro Frame -->
+    <div class="iphone-frame">
+      <div class="dynamic-island">
+        <div class="island-camera"></div>
+      </div>
+      
+      <!-- iOS Status Bar -->
+      <div class="ios-status-bar">
+        <span class="status-time" id="statusTime">09:41</span>
+        <div class="status-icons">
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-battery-full"></i>
+        </div>
+      </div>
+
+      <!-- App Screen Container -->
+      <div class="app-screen">
+        
+        <!-- TAB 1: DASHBOARD -->
+        <div class="tab-content active" id="tab-dashboard">
+          <div class="nav-bar">
+            <h1 class="nav-title">NetScan</h1>
+            <button class="nav-btn" id="btnRefreshInfo"><i class="fa-solid fa-rotate"></i></button>
+          </div>
+
+          <div class="scroll-body">
+            <!-- Wi-Fi Network Card -->
+            <div class="ios-card wifi-card">
+              <div class="card-header">
+                <div class="card-icon-circle blue">
+                  <i class="fa-solid fa-wifi"></i>
+                </div>
+                <div class="card-header-text">
+                  <div class="network-ssid" id="dashSSID">Home_WiFi_5G</div>
+                  <div class="network-type" id="dashType">Wi-Fi (802.11ax)</div>
+                </div>
+                <span class="badge green">Online</span>
+              </div>
+              <div class="card-divider"></div>
+              <div class="specs-grid">
+                <div class="spec-item">
+                  <span class="spec-label">IP Address</span>
+                  <span class="spec-val" id="dashIP">192.168.1.105</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Subnet Mask</span>
+                  <span class="spec-val" id="dashMask">255.255.255.0</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Default Gateway</span>
+                  <span class="spec-val" id="dashGateway">192.168.1.1</span>
+                </div>
+                <div class="spec-item">
+                  <span class="spec-label">Broadcast IP</span>
+                  <span class="spec-val" id="dashBroadcast">192.168.1.255</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Bandwidth Throughput Card -->
+            <div class="section-title-row">
+              <span class="section-title">Real-Time Network Traffic</span>
+              <span class="section-subtitle">Updated 1s</span>
+            </div>
+
+            <div class="speed-cards-grid">
+              <div class="speed-card download">
+                <div class="speed-header">
+                  <i class="fa-solid fa-circle-down"></i>
+                  <span>DOWNLOAD</span>
+                </div>
+                <div class="speed-number-row">
+                  <span class="speed-val" id="dashDownloadSpeed">745.2</span>
+                  <span class="speed-unit">KB/s</span>
+                </div>
+                <div class="mini-bar-track">
+                  <div class="mini-bar-fill green" id="dashDownloadBar" style="width: 45%;"></div>
+                </div>
+              </div>
+
+              <div class="speed-card upload">
+                <div class="speed-header">
+                  <i class="fa-solid fa-circle-up"></i>
+                  <span>UPLOAD</span>
+                </div>
+                <div class="speed-number-row">
+                  <span class="speed-val" id="dashUploadSpeed">184.6</span>
+                  <span class="speed-unit">KB/s</span>
+                </div>
+                <div class="mini-bar-track">
+                  <div class="mini-bar-fill blue" id="dashUploadBar" style="width: 30%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Devices Summary -->
+            <div class="ios-card summary-card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Discovered Hosts</div>
+                  <div class="card-sub" id="dashDeviceCount">7 devices active on subnet</div>
+                </div>
+                <button class="pill-btn primary" id="btnDashScan">
+                  <i class="fa-solid fa-radar"></i> Scan
+                </button>
+              </div>
+              <div id="dashDeviceListPreview" class="preview-device-list">
+                <!-- Mini preview rows injected via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: DEVICES -->
+        <div class="tab-content" id="tab-devices">
+          <div class="nav-bar">
+            <h1 class="nav-title">Network Devices</h1>
+            <button class="nav-btn primary-text" id="btnScanSubnet">Scan</button>
+          </div>
+
+          <!-- Scan Progress Bar -->
+          <div class="scan-progress-bar" id="scanProgressContainer" style="display: none;">
+            <div class="progress-track">
+              <div class="progress-fill" id="scanProgressFill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-label-row">
+              <span>Probing subnet hosts...</span>
+              <span id="scanPercentText">0%</span>
+            </div>
+          </div>
+
+          <!-- Search Input -->
+          <div class="search-bar-wrap">
+            <div class="search-bar">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="deviceSearchInput" placeholder="Search by IP, Name, or Vendor">
+            </div>
+          </div>
+
+          <!-- Filter Chips -->
+          <div class="chips-scroll">
+            <button class="chip active" data-filter="all">All (7)</button>
+            <button class="chip" data-filter="phone">Smartphones</button>
+            <button class="chip" data-filter="computer">Computers</button>
+            <button class="chip" data-filter="router">Routers</button>
+            <button class="chip" data-filter="smartHome">Smart Home</button>
+            <button class="chip" data-filter="printer">Printers</button>
+            <button class="chip" data-filter="gaming">Gaming</button>
+          </div>
+
+          <!-- Main Device List -->
+          <div class="scroll-body" style="padding-top: 4px;">
+            <div class="list-section-header" id="devicesListHeader">7 DEVICES ON 192.168.1.0/24</div>
+            <div class="ios-list-group" id="devicesContainer">
+              <!-- Dynamically populated rows -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: PACKETS -->
+        <div class="tab-content" id="tab-packets">
+          <div class="nav-bar">
+            <h1 class="nav-title">Packet Inspector</h1>
+            <div class="nav-actions">
+              <button class="nav-btn" id="btnToggleCapture"><i class="fa-solid fa-pause"></i></button>
+              <button class="nav-btn" id="btnClearPackets"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+
+          <!-- Live Capture Status Banner -->
+          <div class="capture-banner">
+            <div class="capture-status">
+              <span class="pulse-dot green" id="captureDot"></span>
+              <span id="captureStatusText">LIVE CAPTURE ACTIVE</span>
+            </div>
+            <span class="packet-counter" id="packetCountBadge">0 packets</span>
+          </div>
+
+          <!-- Protocol Filter Chips -->
+          <div class="chips-scroll">
+            <button class="chip active" data-proto="all">ALL</button>
+            <button class="chip proto-tcp" data-proto="TCP">TCP</button>
+            <button class="chip proto-udp" data-proto="UDP">UDP</button>
+            <button class="chip proto-dns" data-proto="DNS">DNS</button>
+            <button class="chip proto-http" data-proto="HTTP">HTTP</button>
+            <button class="chip proto-tls" data-proto="HTTPS / TLS">HTTPS</button>
+            <button class="chip proto-icmp" data-proto="ICMP">ICMP</button>
+            <button class="chip proto-mdns" data-proto="mDNS / Bonjour">mDNS</button>
+          </div>
+
+          <!-- Search Packets -->
+          <div class="search-bar-wrap">
+            <div class="search-bar">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="packetSearchInput" placeholder="Filter by endpoint, query or hex payload">
+            </div>
+          </div>
+
+          <!-- Packets Stream Table -->
+          <div class="scroll-body" style="padding-top: 4px;">
+            <div class="packet-list" id="packetsContainer">
+              <!-- Packets injected dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: TOOLS -->
+        <div class="tab-content" id="tab-tools">
+          <div class="nav-bar">
+            <h1 class="nav-title">Network Tools</h1>
+          </div>
+
+          <div class="segmented-picker">
+            <button class="seg-btn active" data-tool="ping">Ping</button>
+            <button class="seg-btn" data-tool="portscan">Port Scan</button>
+            <button class="seg-btn" data-tool="wol">Wake on LAN</button>
+          </div>
+
+          <div class="scroll-body" style="padding-top: 10px;">
+            <!-- TOOL: PING -->
+            <div class="tool-panel active" id="tool-ping">
+              <div class="input-card">
+                <div class="input-row">
+                  <i class="fa-solid fa-globe"></i>
+                  <input type="text" id="pingHostInput" value="192.168.1.1" placeholder="IP or Hostname">
+                  <button class="pill-btn primary" id="btnStartPing">Ping</button>
+                </div>
+              </div>
+
+              <div class="ping-metrics-row">
+                <div class="ping-stat">
+                  <span class="stat-name">AVG RTT</span>
+                  <span class="stat-val blue" id="pingAvg">1.8 ms</span>
+                </div>
+                <div class="ping-stat">
+                  <span class="stat-name">MIN RTT</span>
+                  <span class="stat-val green" id="pingMin">1.1 ms</span>
+                </div>
+                <div class="ping-stat">
+                  <span class="stat-name">MAX RTT</span>
+                  <span class="stat-val orange" id="pingMax">3.4 ms</span>
+                </div>
+                <div class="ping-stat">
+                  <span class="stat-name">LOSS</span>
+                  <span class="stat-val" id="pingLoss">0%</span>
+                </div>
+              </div>
+
+              <div class="ios-card log-card">
+                <div class="card-title">Ping Response Log</div>
+                <div class="ping-log-scroll" id="pingLogContainer">
+                  <!-- Log entries -->
+                </div>
+              </div>
+            </div>
+
+            <!-- TOOL: PORT SCAN -->
+            <div class="tool-panel" id="tool-portscan">
+              <div class="input-card">
+                <div class="input-row">
+                  <i class="fa-solid fa-server"></i>
+                  <input type="text" id="portTargetInput" value="192.168.1.1" placeholder="Target IP">
+                  <button class="pill-btn primary" id="btnStartPortScan">Scan</button>
+                </div>
+              </div>
+
+              <div class="ios-card">
+                <div class="card-title">Common Ports Discovered</div>
+                <div class="ports-list" id="portScanResults">
+                  <!-- Port items injected -->
+                </div>
+              </div>
+            </div>
+
+            <!-- TOOL: WAKE ON LAN -->
+            <div class="tool-panel" id="tool-wol">
+              <div class="input-card">
+                <label class="input-label">TARGET MAC ADDRESS</label>
+                <div class="input-row">
+                  <i class="fa-solid fa-microchip"></i>
+                  <input type="text" id="wolMacInput" value="00:11:22:33:44:55" placeholder="XX:XX:XX:XX:XX:XX">
+                </div>
+                <button class="pill-btn primary full-width" id="btnSendWOL" style="margin-top: 12px;">
+                  <i class="fa-solid fa-power-off"></i> Send Magic Packet
+                </button>
+              </div>
+
+              <div id="wolFeedback" class="feedback-banner" style="display: none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: SETTINGS & ALTSTORE -->
+        <div class="tab-content" id="tab-settings">
+          <div class="nav-bar">
+            <h1 class="nav-title">Settings</h1>
+          </div>
+
+          <div class="scroll-body">
+            <div class="settings-group">
+              <div class="group-title">ALTSTORE SIDELOADING</div>
+              <div class="settings-row">
+                <span>Bundle ID</span>
+                <span class="mono-sub">com.netscan.app</span>
+              </div>
+              <div class="settings-row">
+                <span>Architecture</span>
+                <span class="subtext">ARM64 (iOS 16+)</span>
+              </div>
+              <div class="settings-row">
+                <span>Package File</span>
+                <span class="mono-sub">NetScan.ipa</span>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div class="group-title">HOW TO SIDELOAD VIA ALTSTORE</div>
+              <div class="guide-step">
+                <div class="step-num">1</div>
+                <div>Install AltServer on Windows or macOS from altstore.io</div>
+              </div>
+              <div class="guide-step">
+                <div class="step-num">2</div>
+                <div>Connect iPhone via USB and click "Install AltStore"</div>
+              </div>
+              <div class="guide-step">
+                <div class="step-num">3</div>
+                <div>Trust Developer Profile in iOS Settings -> VPN & Device Management</div>
+              </div>
+              <div class="guide-step">
+                <div class="step-num">4</div>
+                <div>Open AltStore, tap "+" in "My Apps", and select <b>NetScan.ipa</b></div>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div class="group-title">REQUIRED PRIVACY PERMISSIONS</div>
+              <div class="settings-row">
+                <div class="perm-title">
+                  <i class="fa-solid fa-network-wired blue"></i>
+                  <span>Local Network Usage</span>
+                </div>
+                <span class="badge green">Configured</span>
+              </div>
+              <div class="settings-row">
+                <div class="perm-title">
+                  <i class="fa-solid fa-wifi green"></i>
+                  <span>Wi-Fi SSID Entitlement</span>
+                </div>
+                <span class="badge green">Configured</span>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div class="group-title">ABOUT</div>
+              <div class="settings-row">
+                <span>App Version</span>
+                <span class="subtext">1.0.0 (Build 1)</span>
+              </div>
+              <div class="settings-row">
+                <span>Framework</span>
+                <span class="subtext">SwiftUI & Combine</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: DEVICE DETAIL -->
+        <div class="modal-backdrop" id="deviceModal" style="display: none;">
+          <div class="modal-card">
+            <div class="modal-header">
+              <div class="modal-title" id="modDeviceName">Device Detail</div>
+              <button class="close-modal-btn" id="btnCloseDeviceModal">&times;</button>
+            </div>
+            <div class="modal-body" id="deviceModalContent">
+              <!-- Content rendered via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: PACKET DETAIL (HEX DUMP) -->
+        <div class="modal-backdrop" id="packetModal" style="display: none;">
+          <div class="modal-card">
+            <div class="modal-header">
+              <div class="modal-title" id="modPacketProto">Packet Layer Details</div>
+              <button class="close-modal-btn" id="btnClosePacketModal">&times;</button>
+            </div>
+            <div class="modal-body" id="packetModalContent">
+              <!-- Content rendered via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- iOS Bottom Tab Bar -->
+        <div class="ios-tab-bar">
+          <button class="tab-btn active" data-tab="tab-dashboard">
+            <i class="fa-solid fa-gauge-high"></i>
+            <span>Dashboard</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-devices">
+            <i class="fa-solid fa-network-wired"></i>
+            <span>Devices</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-packets">
+            <i class="fa-solid fa-file-code"></i>
+            <span>Packets</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-tools">
+            <i class="fa-solid fa-screwdriver-wrench"></i>
+            <span>Tools</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-settings">
+            <i class="fa-solid fa-gear"></i>
+            <span>Settings</span>
+          </button>
+        </div>
+
+        <!-- Home Bar Indicator -->
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

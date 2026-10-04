@@ -1,0 +1,51 @@
+name: Build NetScan iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Package NetScan IPA
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+
+      - name: Build and Archive
+        run: |
+          mkdir -p build/Payload
+          
+          xcodebuild archive \
+            -project NetScan/NetScan.xcodeproj \
+            -scheme NetScan \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/NetScan.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package Payload into IPA
+        run: |
+          APP_PATH=$(find build/NetScan.xcarchive/Products/Applications -name "*.app" | head -n 1)
+          echo "Found compiled app at: $APP_PATH"
+          cp -R "$APP_PATH" build/Payload/
+          cd build
+          zip -qr NetScan.ipa Payload
+          echo "Generated IPA size:"
+          ls -lh NetScan.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetScan-ipa
+          path: build/NetScan.ipa
+          if-no-files-found: error

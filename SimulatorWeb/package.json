@@ -1,0 +1,10 @@
+{
+  "name": "netscan-ios-simulator",
+  "version": "1.0.0",
+  "description": "Interactive iOS simulator & companion server for NetScan iPhone App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}

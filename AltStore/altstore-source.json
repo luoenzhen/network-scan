@@ -1,0 +1,53 @@
+{
+  "name": "NetScan Community Repository",
+  "identifier": "com.netscan.altstore.source",
+  "subtitle": "Local Network Scanner and Packet Traffic Inspector for iOS",
+  "description": "Comprehensive network scanning, live device upload/download bandwidth monitoring (KB/s), protocol packet inspection, port auditing, and ping diagnostics for iPhone.",
+  "iconURL": "https://raw.githubusercontent.com/netscan/altstore/main/icons/netscan.png",
+  "headerURL": "https://raw.githubusercontent.com/netscan/altstore/main/headers/banner.png",
+  "website": "https://github.com/netscan/netscan-ios",
+  "apps": [
+    {
+      "name": "NetScan",
+      "bundleIdentifier": "com.netscan.app",
+      "developerName": "NetScan Open Source",
+      "version": "1.0.0",
+      "versionDate": "2026-10-04",
+      "versionDescription": "Initial release featuring subnet scanning, live device upload/download KB/s meters, packet inspector, port scanner, ping diagnostics, and Wake-on-LAN.",
+      "downloadURL": "https://github.com/netscan/netscan-ios/releases/download/v1.0.0/NetScan.ipa",
+      "localizedDescription": "Scan all current devices using the same Wi-Fi network. Monitor live upload and download bandwidth in KB/second per device. Inspect live network packets with protocol decoding and hex payloads. Includes diagnostic ping latency metrics and port auditing.",
+      "iconURL": "https://raw.githubusercontent.com/netscan/altstore/main/icons/netscan.png",
+      "tintColor": "0A84FF",
+      "size": 15400000,
+      "screenshotURLs": [
+        "https://raw.githubusercontent.com/netscan/altstore/main/screenshots/devices.png",
+        "https://raw.githubusercontent.com/netscan/altstore/main/screenshots/traffic.png",
+        "https://raw.githubusercontent.com/netscan/altstore/main/screenshots/packets.png"
+      ],
+      "appPermissions": {
+        "entitlements": [
+          {
+            "name": "com.apple.developer.networking.wifi-info",
+            "description": "Access Wi-Fi network SSID and gateway configuration"
+          }
+        ],
+        "privacy": [
+          {
+            "name": "NSLocalNetworkUsageDescription",
+            "description": "Discover devices and monitor local network diagnostics"
+          }
+        ]
+      }
+    }
+  ],
+  "news": [
+    {
+      "title": "NetScan v1.0 Released",
+      "identifier": "netscan-release-1.0",
+      "caption": "Local network scanning and packet inspection on iOS",
+      "date": "2026-10-04",
+      "tintColor": "0A84FF",
+      "appID": "com.netscan.app"
+    }
+  ]
+}
