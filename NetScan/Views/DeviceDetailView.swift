@@ -107,7 +107,36 @@ public struct DeviceDetailView: View {
                 detailRow(label: "IP Address", value: viewModel.device.ipAddress)
                 detailRow(label: "MAC Address", value: viewModel.device.macAddress)
                 detailRow(label: "Hostname", value: viewModel.device.hostname)
-                detailRow(label: "Hardware Vendor", value: viewModel.device.vendor)
+                HStack {
+                    Text("Hardware Vendor")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(viewModel.device.vendor)
+                        .fontWeight(.semibold)
+                    if viewModel.device.vendor == "Network Device" || viewModel.device.vendor == "Unknown" || viewModel.device.vendor.isEmpty {
+                        Button(action: {
+                            viewModel.searchVendorOnline()
+                        }) {
+                            if viewModel.isSearchingOnlineVendor {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            } else {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "globe")
+                                    Text("Find Online")
+                                }
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.blue.opacity(0.15))
+                                .foregroundColor(.blue)
+                                .cornerRadius(6)
+                            }
+                        }
+                        .disabled(viewModel.isSearchingOnlineVendor)
+                    }
+                }
                 detailRow(label: "Device Category", value: viewModel.device.deviceType.rawValue)
                 detailRow(label: "Round-Trip Latency", value: String(format: "%.1f ms", viewModel.device.latencyMs))
             }
@@ -196,6 +225,21 @@ public struct DeviceDetailView: View {
                         Text("Send Wake-on-LAN Magic Packet")
                     }
                 }
+                
+                Button(action: {
+                    viewModel.searchVendorOnline()
+                }) {
+                    HStack {
+                        Image(systemName: "globe.badge.chevron.backward")
+                            .foregroundColor(.indigo)
+                        Text(viewModel.isSearchingOnlineVendor ? "Searching Internet OUI Database..." : "Search Vendor from Internet")
+                        if viewModel.isSearchingOnlineVendor {
+                            Spacer()
+                            ProgressView().scaleEffect(0.7)
+                        }
+                    }
+                }
+                .disabled(viewModel.isSearchingOnlineVendor)
             }
             
             // Device Specific Packets

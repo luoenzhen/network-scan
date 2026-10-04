@@ -5,6 +5,7 @@
 //
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -13,6 +14,88 @@ const dgram = require('dgram');
 
 const PORT = 3840;
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// --- IEEE OUI Vendor Database (52,000+ entries) & Online Search ---
+const ouiDatabase = new Map();
+try {
+    const ouiFile = path.join(__dirname, 'oui.txt');
+    if (fs.existsSync(ouiFile)) {
+        const lines = fs.readFileSync(ouiFile, 'utf8').split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const spaceIdx = trimmed.indexOf(' ');
+            if (spaceIdx > 0) {
+                const prefix = trimmed.substring(0, spaceIdx).toUpperCase();
+                const vendor = trimmed.substring(spaceIdx + 1).trim();
+                ouiDatabase.set(prefix, vendor);
+            }
+        }
+        console.log(`[OUI] Loaded ${ouiDatabase.size} IEEE OUI prefixes.`);
+    }
+} catch (e) {
+    console.error('[OUI] Error loading oui.txt:', e.message);
+}
+
+// Searches online MAC vendor databases if not found in local OUI database
+function lookupVendorOnline(mac, callback) {
+    if (!mac) return callback(null);
+    const clean = mac.replace(/[:.-]/g, '').toUpperCase();
+    if (clean.length < 6) return callback(null);
+    const prefix = clean.substring(0, 6);
+    
+    // 1. Check local ouiDatabase first
+    if (ouiDatabase.has(prefix)) {
+        return callback(ouiDatabase.get(prefix));
+    }
+    
+    // 2. Query api.maclookup.app (Structured JSON)
+    const options = {
+        hostname: 'api.maclookup.app',
+        path: `/v2/macs/${prefix}`,
+        method: 'GET',
+        headers: { 'User-Agent': 'NetScan-Simulator/1.0' },
+        timeout: 4000
+    };
+    
+    const req = https.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                if (data && data.found && data.company) {
+                    ouiDatabase.set(prefix, data.company);
+                    return callback(data.company);
+                }
+            } catch (err) {}
+            
+            // Secondary fallback: api.macvendors.com
+            const fallbackReq = https.request({
+                hostname: 'api.macvendors.com',
+                path: `/${mac}`,
+                method: 'GET',
+                headers: { 'User-Agent': 'NetScan-Simulator/1.0' },
+                timeout: 4000
+            }, (fallbackRes) => {
+                let fbBody = '';
+                fallbackRes.on('data', chunk => fbBody += chunk);
+                fallbackRes.on('end', () => {
+                    const vendorStr = fbBody.trim();
+                    if (vendorStr && !vendorStr.includes('errors') && !vendorStr.includes('Not Found')) {
+                        ouiDatabase.set(prefix, vendorStr);
+                        return callback(vendorStr);
+                    }
+                    callback(null);
+                });
+            });
+            fallbackReq.on('error', () => callback(null));
+            fallbackReq.end();
+        });
+    });
+    req.on('error', () => callback(null));
+    req.end();
+}
 
 // --- Network Discovery Helpers ---
 function getLocalNetworkInfo() {
@@ -402,6 +485,20 @@ const server = http.createServer((req, res) => {
     if (pathname === '/api/devices') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(devices));
+        return;
+    }
+
+    if (pathname === '/api/lookup-vendor') {
+        const mac = url.searchParams.get('mac') || '';
+        lookupVendorOnline(mac, (vendor) => {
+            const clean = mac.replace(/[:.-]/g, '').substring(0, 6).toUpperCase();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                mac,
+                vendor: vendor || 'Network Device',
+                source: ouiDatabase.has(clean) ? 'local_oui_db' : 'online_api'
+            }));
+        });
         return;
     }
 

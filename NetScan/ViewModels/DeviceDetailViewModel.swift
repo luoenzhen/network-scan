@@ -83,4 +83,28 @@ public class DeviceDetailViewModel: ObservableObject {
         let broadcast = NetworkInterfaceService.shared.getCurrentInterface().broadcastIP
         WakeOnLANService.shared.sendWakePacket(macAddress: device.macAddress, broadcastIP: broadcast, completion: completion)
     }
+    
+    @Published public var isSearchingOnlineVendor: Bool = false
+    
+    /// Queries the live Internet MAC vendor database for this device
+    public func searchVendorOnline() {
+        guard !isSearchingOnlineVendor else { return }
+        isSearchingOnlineVendor = true
+        
+        Task {
+            let (vendor, devType) = await OUIVendorDatabase.identifyDeviceAsync(
+                macAddress: device.macAddress,
+                hostname: device.hostname
+            )
+            await MainActor.run {
+                self.isSearchingOnlineVendor = false
+                if vendor != "Network Device" && vendor != "Unknown" {
+                    self.device.vendor = vendor
+                    if self.device.deviceType == .unknown {
+                        self.device.deviceType = devType
+                    }
+                }
+            }
+        }
+    }
 }

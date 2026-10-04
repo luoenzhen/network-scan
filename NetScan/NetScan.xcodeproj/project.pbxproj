@@ -44,6 +44,7 @@
 		AA0100232C00000100000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100232C00000100000001 /* SettingsView.swift */; };
 		AA0100242C00000100000001 /* AltStoreInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100242C00000100000001 /* AltStoreInfoView.swift */; };
 		AA0100252C00000100000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB0100252C00000100000001 /* Assets.xcassets */; };
+		AA0100282C00000100000001 /* oui.txt in Resources */ = {isa = PBXBuildFile; fileRef = BB0100282C00000100000001 /* oui.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -87,6 +88,7 @@
 		BB0100252C00000100000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BB0100262C00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BB0100272C00000100000001 /* NetScan.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetScan.entitlements; sourceTree = "<group>"; };
+		BB0100282C00000100000001 /* oui.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = oui.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +199,7 @@
 				BB0100252C00000100000001 /* Assets.xcassets */,
 				BB0100262C00000100000001 /* Info.plist */,
 				BB0100272C00000100000001 /* NetScan.entitlements */,
+				BB0100282C00000100000001 /* oui.txt */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -267,6 +270,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0100252C00000100000001 /* Assets.xcassets in Resources */,
+				AA0100282C00000100000001 /* oui.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

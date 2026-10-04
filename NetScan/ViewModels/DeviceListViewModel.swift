@@ -30,6 +30,7 @@ public class DeviceListViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     public init() {
+        OUIVendorDatabase.loadDatabaseIfNeeded()
         startTrafficPolling()
         loadDefaultSampleData()
     }
@@ -96,8 +97,33 @@ public class DeviceListViewModel: ObservableObject {
                 if !allDevices.isEmpty {
                     self.devices = allDevices
                 }
+                self.enrichVendorsOnline()
             }
         )
+    }
+    
+    /// Queries the online Internet vendor database for any devices not recognized locally
+    public func enrichVendorsOnline() {
+        for (index, device) in devices.enumerated() {
+            if device.vendor == "Network Device" || device.vendor == "Unknown" || device.vendor.isEmpty {
+                Task {
+                    let (vendor, type) = await OUIVendorDatabase.identifyDeviceAsync(
+                        macAddress: device.macAddress,
+                        hostname: device.hostname
+                    )
+                    if vendor != "Network Device" && vendor != "Unknown" {
+                        await MainActor.run {
+                            if index < self.devices.count && self.devices[index].id == device.id {
+                                self.devices[index].vendor = vendor
+                                if self.devices[index].deviceType == .unknown {
+                                    self.devices[index].deviceType = type
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     
     public func stopScan() {
