@@ -106,7 +106,13 @@ public class DeviceListViewModel: ObservableObject {
         )
     }
     
-    /// Queries the online Internet vendor database for any devices not recognized locally
+    public func updateDevice(_ updatedDevice: NetworkDevice) {
+        if let index = devices.firstIndex(where: { $0.id == updatedDevice.id || $0.ipAddress == updatedDevice.ipAddress }) {
+            devices[index] = updatedDevice
+        }
+    }
+    
+    /// Queries the online Internet vendor database and LAN heuristics for any devices not recognized locally
     public func enrichVendorsOnline() {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
@@ -116,13 +122,18 @@ public class DeviceListViewModel: ObservableObject {
             for i in 0..<updatedDevices.count {
                 let dev = updatedDevices[i]
                 if dev.vendor == "Network Device" || dev.vendor == "Unknown" || dev.vendor.isEmpty {
-                    let (vendor, type) = await OUIVendorDatabase.identifyDeviceAsync(
+                    let (vendor, type, resolvedHost) = await OUIVendorDatabase.identifyDeviceAsync(
+                        ipAddress: dev.ipAddress,
                         macAddress: dev.macAddress,
                         hostname: dev.hostname
                     )
-                    if vendor != "Network Device" && vendor != "Unknown" {
+                    if let host = resolvedHost, !host.isEmpty, host != updatedDevices[i].hostname {
+                        updatedDevices[i].hostname = host
+                        hasChanges = true
+                    }
+                    if vendor != "Network Device" && vendor != "Unknown" && !vendor.isEmpty {
                         updatedDevices[i].vendor = vendor
-                        if updatedDevices[i].deviceType == .unknown {
+                        if updatedDevices[i].deviceType == .unknown || updatedDevices[i].deviceType != type {
                             updatedDevices[i].deviceType = type
                         }
                         hasChanges = true

@@ -64,7 +64,9 @@ public struct DeviceListView: View {
                 List {
                     Section(header: listHeader) {
                         ForEach(viewModel.filteredAndSortedDevices, id: \.id) { device in
-                            NavigationLink(destination: DeviceDetailView(device: device)) {
+                            NavigationLink(destination: DeviceDetailView(device: device, onUpdate: { updated in
+                                viewModel.updateDevice(updated)
+                            })) {
                                 DeviceRowView(device: device)
                             }
                         }

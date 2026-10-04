@@ -9,6 +9,9 @@
 //
 
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 public struct OUIVendorDatabase {
     // Thread-safe runtime caches
@@ -983,8 +986,11 @@ public struct OUIVendorDatabase {
         let clean = macAddress.uppercased().replacingOccurrences(of: ":", with: "")
                                            .replacingOccurrences(of: "-", with: "")
                                            .replacingOccurrences(of: ".", with: "")
+                                           .trimmingCharacters(in: .whitespacesAndNewlines)
         guard clean.count >= 6 else { return nil }
         let prefix = String(clean.prefix(6))
+        let hexChars = CharacterSet(charactersIn: "0123456789ABCDEF")
+        guard prefix.unicodeScalars.allSatisfy({ hexChars.contains($0) }) else { return nil }
         
         // Check cache
         lock.lock()
@@ -997,7 +1003,7 @@ public struct OUIVendorDatabase {
         // 1. Primary Service: api.maclookup.app (Structured JSON, synced with IEEE)
         if let url = URL(string: "https://api.maclookup.app/v2/macs/\(prefix)") {
             var request = URLRequest(url: url)
-            request.timeoutInterval = 4.0
+            request.timeoutInterval = 3.5
             request.setValue("NetScan-iOS/1.0", forHTTPHeaderField: "User-Agent")
             
             do {
@@ -1005,15 +1011,17 @@ public struct OUIVendorDatabase {
                 if let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let found = json["found"] as? Bool, found,
-                   let company = json["company"] as? String, !company.trimmingCharacters(in: .whitespaces).isEmpty {
+                   let company = json["company"] as? String {
                     let cleanedCompany = company.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let devType = inferDeviceType(hostname: "", vendor: cleanedCompany)
-                    let result = (cleanedCompany, devType)
-                    
-                    lock.lock()
-                    onlineCache[prefix] = result
-                    lock.unlock()
-                    return result
+                    if !cleanedCompany.isEmpty && !cleanedCompany.hasPrefix("<") && cleanedCompany.count < 100 {
+                        let devType = inferDeviceType(hostname: "", vendor: cleanedCompany)
+                        let result = (cleanedCompany, devType)
+                        
+                        lock.lock()
+                        onlineCache[prefix] = result
+                        lock.unlock()
+                        return result
+                    }
                 }
             } catch {
                 // Continue to secondary fallback
@@ -1021,24 +1029,21 @@ public struct OUIVendorDatabase {
         }
         
         // 2. Secondary Service: api.macvendors.com
-        let formattedMac = String(format: "%@:%@:%@:%@:%@:%@",
-                                  String(clean.prefix(2)),
-                                  String(clean.dropFirst(2).prefix(2)),
-                                  String(clean.dropFirst(4).prefix(2)),
-                                  clean.count >= 8 ? String(clean.dropFirst(6).prefix(2)) : "00",
-                                  clean.count >= 10 ? String(clean.dropFirst(8).prefix(2)) : "00",
-                                  clean.count >= 12 ? String(clean.dropFirst(10).prefix(2)) : "00")
+        let p1 = prefix.prefix(2)
+        let p2 = prefix.dropFirst(2).prefix(2)
+        let p3 = prefix.dropFirst(4).prefix(2)
+        let formattedOUI = "\(p1):\(p2):\(p3)"
         
-        if let url = URL(string: "https://api.macvendors.com/\(formattedMac)") {
+        if let url = URL(string: "https://api.macvendors.com/\(formattedOUI)") {
             var request = URLRequest(url: url)
-            request.timeoutInterval = 4.0
+            request.timeoutInterval = 3.5
             request.setValue("NetScan-iOS/1.0", forHTTPHeaderField: "User-Agent")
             
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 if let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                    let vendorStr = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !vendorStr.isEmpty && !vendorStr.contains("errors") && !vendorStr.contains("Not Found") {
+                   !vendorStr.isEmpty && !vendorStr.contains("errors") && !vendorStr.contains("Not Found") && !vendorStr.hasPrefix("<") && vendorStr.count < 100 {
                     let devType = inferDeviceType(hostname: "", vendor: vendorStr)
                     let result = (vendorStr, devType)
                     
@@ -1154,17 +1159,151 @@ public struct OUIVendorDatabase {
         return ("Network Device", .unknown)
     }
     
-    // MARK: - Asynchronous Identification (With Online Internet Search Fallback)
+    // MARK: - LAN Network Diagnostics & Probing
     
-    public static func identifyDeviceAsync(macAddress: String?, hostname: String) async -> (vendor: String, deviceType: DeviceType) {
-        // Fast local lookup first
-        let local = identifyDevice(macAddress: macAddress, hostname: hostname)
-        if local.vendor != "Network Device" && local.vendor != "Unknown" && !local.vendor.isEmpty {
-            return local
+    /// Non-blocking reverse DNS lookup with bounded timeout (default 1.2s)
+    public static func resolveReverseDNS(ip: String, timeout: TimeInterval = 1.2) async -> String? {
+        await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        var addr = sockaddr_in()
+                        addr.sin_family = sa_family_t(AF_INET)
+                        guard inet_pton(AF_INET, ip, &addr.sin_addr) == 1 else {
+                            continuation.resume(returning: nil)
+                            return
+                        }
+                        
+                        var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                        let result = withUnsafePointer(to: &addr) {
+                            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                                getnameinfo($0, socklen_t(MemoryLayout<sockaddr_in>.size),
+                                            &host, socklen_t(host.count),
+                                            nil, 0, NI_NAMEREQD)
+                            }
+                        }
+                        
+                        if result == 0 {
+                            let name = String(cString: host).trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !name.isEmpty && name != ip {
+                                continuation.resume(returning: name)
+                                return
+                            }
+                        }
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+            
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                return nil
+            }
+            
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+    
+    /// Probes HTTP server banner and title on local IP (port 80)
+    public static func probeHTTPIdentity(ip: String) async -> (vendor: String, deviceType: DeviceType)? {
+        guard let url = URL(string: "http://\(ip)/") else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 1.5
+        request.setValue("NetScan-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 1.5
+        config.timeoutIntervalForResource = 1.5
+        let session = URLSession(configuration: config)
+        
+        do {
+            let (data, response) = try await session.data(for: request)
+            if let httpRes = response as? HTTPURLResponse {
+                // 1. Inspect Server Header
+                if let server = httpRes.allHeaderFields["Server"] as? String {
+                    let s = server.lowercased()
+                    if s.contains("tp-link") || s.contains("archer") { return ("TP-Link Technologies", .router) }
+                    if s.contains("netgear") { return ("NETGEAR", .router) }
+                    if s.contains("asus") { return ("ASUS", .router) }
+                    if s.contains("synology") || s.contains("dsm") { return ("Synology Inc.", .computer) }
+                    if s.contains("qnap") { return ("QNAP Systems", .computer) }
+                    if s.contains("hp ") || s.contains("hewlett-packard") { return ("HP (Hewlett-Packard)", .printer) }
+                    if s.contains("epson") { return ("Epson", .printer) }
+                    if s.contains("canon") { return ("Canon", .printer) }
+                    if s.contains("brother") { return ("Brother Industries", .printer) }
+                    if s.contains("tasmota") { return ("Tasmota Smart Device", .smartHome) }
+                    if s.contains("esphome") { return ("ESPHome Device", .smartHome) }
+                    if s.contains("hue") { return ("Philips Hue", .smartHome) }
+                    if s.contains("sonos") { return ("Sonos", .smartHome) }
+                    if s.contains("roku") { return ("Roku Inc.", .tv) }
+                }
+                
+                // 2. Inspect HTML <title> tag in the initial chunk
+                let prefixData = data.prefix(2048)
+                if let html = String(data: prefixData, encoding: .utf8) ?? String(data: prefixData, encoding: .ascii) {
+                    let lower = html.lowercased()
+                    if let titleRange = lower.range(of: "<title"),
+                       let closeRange = lower.range(of: "</title>", range: titleRange.upperBound..<lower.endIndex) {
+                        let title = String(lower[titleRange.lowerBound..<closeRange.upperBound])
+                        if title.contains("raspberry") || title.contains("octoprint") || title.contains("pi-hole") {
+                            return ("Raspberry Pi Foundation", .computer)
+                        }
+                        if title.contains("tp-link") || title.contains("archer") {
+                            return ("TP-Link Technologies", .router)
+                        }
+                        if title.contains("netgear") {
+                            return ("NETGEAR", .router)
+                        }
+                        if title.contains("asus") || title.contains("rt-") {
+                            return ("ASUS", .router)
+                        }
+                        if title.contains("synology") || title.contains("diskstation") {
+                            return ("Synology Inc.", .computer)
+                        }
+                        if title.contains("laserjet") || title.contains("officejet") || title.contains("hp ") {
+                            return ("HP (Hewlett-Packard)", .printer)
+                        }
+                        if title.contains("pixma") || title.contains("canon") {
+                            return ("Canon", .printer)
+                        }
+                        if title.contains("ecotank") || title.contains("epson") {
+                            return ("Epson", .printer)
+                        }
+                        if title.contains("openwrt") || title.contains("luci") {
+                            return ("OpenWrt Router", .router)
+                        }
+                        if title.contains("home assistant") {
+                            return ("Home Assistant Hub", .smartHome)
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Non-HTTP endpoint or port closed
         }
         
-        // Fallback: If local lookup failed, search from the Internet
+        return nil
+    }
+    
+    // MARK: - Asynchronous Identification (With Online Internet Search & LAN Fallbacks)
+    
+    public static func identifyDeviceAsync(
+        ipAddress: String? = nil,
+        macAddress: String?,
+        hostname: String
+    ) async -> (vendor: String, deviceType: DeviceType, resolvedHostname: String?) {
+        var discoveredHostname: String? = nil
+        
+        // 1. Fast local MAC lookup first
         if let mac = macAddress, !mac.isEmpty, !mac.contains("Unknown") && !mac.contains("Restricted") {
+            let local = identifyDevice(macAddress: mac, hostname: hostname)
+            if local.vendor != "Network Device" && local.vendor != "Unknown" && !local.vendor.isEmpty {
+                return (local.vendor, local.deviceType, nil)
+            }
+            
+            // 2. Fallback: Search online MAC OUI database from the Internet
             let clean = mac.uppercased().replacingOccurrences(of: ":", with: "")
                                         .replacingOccurrences(of: "-", with: "")
                                         .replacingOccurrences(of: ".", with: "")
@@ -1172,11 +1311,51 @@ public struct OUIVendorDatabase {
             if clean.count >= 6 && clean.unicodeScalars.allSatisfy({ hexChars.contains($0) }) {
                 if let online = await lookupOnline(macAddress: mac) {
                     let type = inferDeviceType(hostname: hostname, vendor: online.vendor)
-                    return (online.vendor, type == .unknown ? online.defaultType : type)
+                    return (online.vendor, type == .unknown ? online.defaultType : type, nil)
                 }
             }
         }
         
-        return local
+        // 3. Hostname-based detection if present and not just numeric IP
+        if !hostname.isEmpty && hostname != ipAddress {
+            let localByHost = identifyDevice(macAddress: nil, hostname: hostname)
+            if localByHost.vendor != "Network Device" && localByHost.vendor != "Unknown" && !localByHost.vendor.isEmpty {
+                return (localByHost.vendor, localByHost.deviceType, nil)
+            }
+        }
+        
+        // 4. IP-based Active Discovery (Reverse DNS PTR, HTTP Banner, Gateway Check)
+        if let ip = ipAddress, !ip.isEmpty {
+            // 4a. Check if IP matches Default Gateway
+            let gatewayIP = NetworkInterfaceService.shared.getCurrentInterface().gatewayIP
+            if !gatewayIP.isEmpty && ip == gatewayIP {
+                return ("Local Network Gateway", .router, nil)
+            }
+            
+            // 4b. Reverse DNS PTR Query
+            if hostname.isEmpty || hostname == ip {
+                if let revHost = await resolveReverseDNS(ip: ip) {
+                    discoveredHostname = revHost
+                    let localByRev = identifyDevice(macAddress: nil, hostname: revHost)
+                    if localByRev.vendor != "Network Device" && localByRev.vendor != "Unknown" && !localByRev.vendor.isEmpty {
+                        return (localByRev.vendor, localByRev.deviceType, revHost)
+                    }
+                }
+            }
+            
+            // 4c. HTTP / Web Banner Probe
+            if let httpMatch = await probeHTTPIdentity(ip: ip) {
+                return (httpMatch.vendor, httpMatch.deviceType, discoveredHostname)
+            }
+        }
+        
+        // 5. Final fallback
+        let fallback = identifyDevice(macAddress: macAddress, hostname: discoveredHostname ?? hostname)
+        return (fallback.vendor, fallback.deviceType, discoveredHostname)
+    }
+    
+    public static func identifyDeviceAsync(macAddress: String?, hostname: String) async -> (vendor: String, deviceType: DeviceType) {
+        let res = await identifyDeviceAsync(ipAddress: nil, macAddress: macAddress, hostname: hostname)
+        return (res.vendor, res.deviceType)
     }
 }

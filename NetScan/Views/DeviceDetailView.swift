@@ -13,8 +13,8 @@ public struct DeviceDetailView: View {
     @State private var wolAlertMessage: String?
     @State private var showWolAlert = false
     
-    public init(device: NetworkDevice) {
-        _viewModel = StateObject(wrappedValue: DeviceDetailViewModel(device: device))
+    public init(device: NetworkDevice, onUpdate: ((NetworkDevice) -> Void)? = nil) {
+        _viewModel = StateObject(wrappedValue: DeviceDetailViewModel(device: device, onDeviceUpdated: onUpdate))
     }
     
     public var body: some View {
@@ -117,23 +117,25 @@ public struct DeviceDetailView: View {
                         Button(action: {
                             viewModel.searchVendorOnline()
                         }) {
-                            if viewModel.isSearchingOnlineVendor {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            } else {
-                                HStack(spacing: 3) {
+                            HStack(spacing: 4) {
+                                if viewModel.isSearchingOnlineVendor {
+                                    ProgressView()
+                                        .scaleEffect(0.65)
+                                        .frame(width: 14, height: 14)
+                                } else {
                                     Image(systemName: "globe")
-                                    Text("Find Online")
                                 }
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(Color.blue.opacity(0.15))
-                                .foregroundColor(.blue)
-                                .cornerRadius(6)
+                                Text(viewModel.isSearchingOnlineVendor ? "Searching..." : "Find Online")
                             }
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundColor(.blue)
+                            .cornerRadius(6)
                         }
+                        .buttonStyle(BorderlessButtonStyle())
                         .disabled(viewModel.isSearchingOnlineVendor)
                     }
                 }
@@ -192,6 +194,7 @@ public struct DeviceDetailView: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 }
+                .buttonStyle(BorderlessButtonStyle())
                 .disabled(viewModel.isScanningPorts)
             }
             
@@ -212,6 +215,7 @@ public struct DeviceDetailView: View {
                         }
                     }
                 }
+                .buttonStyle(BorderlessButtonStyle())
                 
                 Button(action: {
                     viewModel.sendWakeOnLAN { success, msg in
@@ -225,21 +229,34 @@ public struct DeviceDetailView: View {
                         Text("Send Wake-on-LAN Magic Packet")
                     }
                 }
+                .buttonStyle(BorderlessButtonStyle())
                 
-                Button(action: {
-                    viewModel.searchVendorOnline()
-                }) {
-                    HStack {
-                        Image(systemName: "globe.badge.chevron.backward")
-                            .foregroundColor(.indigo)
-                        Text(viewModel.isSearchingOnlineVendor ? "Searching Internet OUI Database..." : "Search Vendor from Internet")
-                        if viewModel.isSearchingOnlineVendor {
+                VStack(alignment: .leading, spacing: 6) {
+                    Button(action: {
+                        viewModel.searchVendorOnline()
+                    }) {
+                        HStack {
+                            Image(systemName: "globe.badge.chevron.backward")
+                                .foregroundColor(.indigo)
+                            Text(viewModel.isSearchingOnlineVendor ? "Searching Internet & LAN Identity..." : "Search Vendor from Internet")
+                                .foregroundColor(.primary)
                             Spacer()
-                            ProgressView().scaleEffect(0.7)
+                            if viewModel.isSearchingOnlineVendor {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            }
                         }
                     }
+                    .buttonStyle(BorderlessButtonStyle())
+                    .disabled(viewModel.isSearchingOnlineVendor)
+                    
+                    if let msg = viewModel.searchStatusMessage {
+                        Text(msg)
+                            .font(.caption2)
+                            .foregroundColor(msg.contains("Identified") ? .green : .secondary)
+                            .padding(.leading, 24)
+                    }
                 }
-                .disabled(viewModel.isSearchingOnlineVendor)
             }
             
             // Device Specific Packets
