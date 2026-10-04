@@ -43,7 +43,7 @@ NetScan scans all active devices connected to the same Wi-Fi network, measures l
 The project strictly follows Apple Human Interface Guidelines (HIG) and the **MVVM (Model-View-ViewModel)** architectural pattern with Combine reactive data binding:
 
 ```
-/mnt/d/projects/test/network-scan/
+network-scan/
 ├── NetScan/                                # Native iOS Xcode App Project
 │   ├── App/
 │   │   ├── NetScanApp.swift                # App entry point (@main)
