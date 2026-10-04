@@ -95,23 +95,12 @@ public class DeviceListViewModel: ObservableObject {
                     self.devices.append(newDevice)
                 }
             },
-            onCompletion: { [weak self] allDevices in
+            onCompletion: { [weak self] _ in
                 guard let self = self else { return }
-                self.isScanning = false
-                self.scanProgress = 1.0
-                self.lastScanTimestamp = Date()
-                if !allDevices.isEmpty {
-                    var updatedList = self.devices
-                    for dev in allDevices {
-                        if let idx = updatedList.firstIndex(where: { $0.ipAddress == dev.ipAddress }) {
-                            var u = dev
-                            u.id = updatedList[idx].id
-                            updatedList[idx] = u
-                        } else {
-                            updatedList.append(dev)
-                        }
-                    }
-                    self.devices = updatedList
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    self.isScanning = false
+                    self.scanProgress = 1.0
+                    self.lastScanTimestamp = Date()
                 }
                 self.startTrafficPolling()
                 self.enrichVendorsOnline()

@@ -62,7 +62,7 @@ public struct DeviceListView: View {
                 // Device List
                 List {
                     Section(header: listHeader) {
-                        ForEach(viewModel.filteredAndSortedDevices) { device in
+                        ForEach(viewModel.filteredAndSortedDevices, id: \.id) { device in
                             NavigationLink(destination: DeviceDetailView(device: device)) {
                                 DeviceRowView(device: device)
                             }

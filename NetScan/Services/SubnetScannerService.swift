@@ -164,7 +164,9 @@ public class SubnetScannerService {
             
             group.notify(queue: .main) {
                 onProgress(1.0)
-                onCompletion(discoveredDevices)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    onCompletion(discoveredDevices)
+                }
             }
         }
     }
@@ -175,73 +177,73 @@ public class SubnetScannerService {
     
     private func probeHost(ip: String, completion: @escaping (NetworkDevice?) -> Void) {
         let startTime = CFAbsoluteTimeGetCurrent()
-        let host = NWEndpoint.Host(ip)
-        guard let port = NWEndpoint.Port(rawValue: 80) else {
+        
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else {
             completion(nil)
             return
         }
         
-        let parameters = NWParameters.tcp
-        parameters.prohibitedInterfaceTypes = [.cellular]
-        let connection = NWConnection(host: host, port: port, using: parameters)
+        // Set non-blocking mode
+        let flags = fcntl(fd, F_GETFL, 0)
+        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
         
-        var hasFinished = false
-        let lock = NSLock()
-        var timeoutWorkItem: DispatchWorkItem?
+        #if canImport(Darwin)
+        var noSigPipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        #endif
         
-        let finish: (NetworkDevice?) -> Void = { device in
-            lock.lock()
-            guard !hasFinished else {
-                lock.unlock()
-                return
+        var addr = sockaddr_in()
+        #if canImport(Darwin)
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        #endif
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = in_port_t(80).bigEndian
+        inet_pton(AF_INET, ip, &addr.sin_addr)
+        
+        var genericAddr = sockaddr()
+        memcpy(&genericAddr, &addr, MemoryLayout<sockaddr_in>.size)
+        
+        let connectRes = connect(fd, &genericAddr, socklen_t(MemoryLayout<sockaddr_in>.size))
+        
+        var isAlive = false
+        var openPort: Int? = nil
+        
+        if connectRes == 0 {
+            isAlive = true
+            openPort = 80
+        } else {
+            let err = errno
+            if err == EINPROGRESS || err == EWOULDBLOCK {
+                var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+                let pollRes = poll(&pfd, 1, 100) // 100ms quick probe
+                if pollRes > 0 {
+                    var soError: Int32 = 0
+                    var len = socklen_t(MemoryLayout<Int32>.size)
+                    getsockopt(fd, SOL_SOCKET, SO_ERROR, &soError, &len)
+                    if soError == 0 {
+                        isAlive = true
+                        openPort = 80
+                    } else if soError == ECONNREFUSED {
+                        isAlive = true
+                        openPort = nil
+                    }
+                }
+            } else if err == ECONNREFUSED {
+                isAlive = true
+                openPort = nil
             }
-            hasFinished = true
-            lock.unlock()
-            
-            timeoutWorkItem?.cancel()
-            connection.stateUpdateHandler = nil
-            connection.cancel()
+        }
+        
+        close(fd)
+        
+        if isAlive {
+            let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+            let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: openPort)
             completion(device)
+        } else {
+            completion(nil)
         }
-        
-        let workItem = DispatchWorkItem {
-            finish(nil)
-        }
-        timeoutWorkItem = workItem
-        
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.35, execute: workItem)
-        
-        connection.stateUpdateHandler = { [weak self] state in
-            guard let self = self else { return }
-            switch state {
-            case .ready:
-                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: 80)
-                finish(device)
-            case .waiting(let error):
-                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                let errStr = error.debugDescription
-                if errStr.contains("61") || errStr.contains("refused") {
-                    let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: nil)
-                    finish(device)
-                }
-            case .failed(let error):
-                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                let errStr = error.debugDescription
-                if errStr.contains("61") || errStr.contains("refused") {
-                    let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: nil)
-                    finish(device)
-                } else {
-                    finish(nil)
-                }
-            case .cancelled:
-                finish(nil)
-            default:
-                break
-            }
-        }
-        
-        connection.start(queue: .global())
     }
     
     private func buildDeviceRecord(ip: String, latency: Double, openPort: Int?) -> NetworkDevice {

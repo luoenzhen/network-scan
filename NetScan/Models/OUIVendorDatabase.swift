@@ -1165,9 +1165,15 @@ public struct OUIVendorDatabase {
         
         // Fallback: If local lookup failed, search from the Internet
         if let mac = macAddress, !mac.isEmpty, !mac.contains("Unknown") && !mac.contains("Restricted") {
-            if let online = await lookupOnline(macAddress: mac) {
-                let type = inferDeviceType(hostname: hostname, vendor: online.vendor)
-                return (online.vendor, type == .unknown ? online.defaultType : type)
+            let clean = mac.uppercased().replacingOccurrences(of: ":", with: "")
+                                        .replacingOccurrences(of: "-", with: "")
+                                        .replacingOccurrences(of: ".", with: "")
+            let hexChars = CharacterSet(charactersIn: "0123456789ABCDEF")
+            if clean.count >= 6 && clean.unicodeScalars.allSatisfy({ hexChars.contains($0) }) {
+                if let online = await lookupOnline(macAddress: mac) {
+                    let type = inferDeviceType(hostname: hostname, vendor: online.vendor)
+                    return (online.vendor, type == .unknown ? online.defaultType : type)
+                }
             }
         }
         
