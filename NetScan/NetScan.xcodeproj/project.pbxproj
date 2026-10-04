@@ -87,7 +87,6 @@
 		BB0100242C00000100000001 /* AltStoreInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltStoreInfoView.swift; sourceTree = "<group>"; };
 		BB0100252C00000100000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BB0100262C00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		BB0100272C00000100000001 /* NetScan.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetScan.entitlements; sourceTree = "<group>"; };
 		BB0100282C00000100000001 /* oui.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = oui.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -198,7 +197,6 @@
 			children = (
 				BB0100252C00000100000001 /* Assets.xcassets */,
 				BB0100262C00000100000001 /* Info.plist */,
-				BB0100272C00000100000001 /* NetScan.entitlements */,
 				BB0100282C00000100000001 /* oui.txt */,
 			);
 			path = Resources;
@@ -377,7 +375,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Resources/NetScan.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -406,7 +403,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Resources/NetScan.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";

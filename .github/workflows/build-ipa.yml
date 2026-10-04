@@ -41,7 +41,19 @@ jobs:
         run: |
           APP_PATH=$(find build/NetScan.xcarchive/Products/Applications -name "*.app" | head -n 1)
           echo "Found compiled app at: $APP_PATH"
+          rm -rf build/Payload
+          mkdir -p build/Payload
           cp -R "$APP_PATH" build/Payload/
+          
+          # Clean any stale entitlements or hidden metadata
+          rm -f build/Payload/NetScan.app/*.entitlements
+          find build/Payload -name ".DS_Store" -delete
+          
+          # Ensure standard Unix executable and directory permissions for AltStore
+          find build/Payload -type d -exec chmod 755 {} +
+          find build/Payload -type f -exec chmod 644 {} +
+          chmod 755 build/Payload/NetScan.app/NetScan
+          
           cd build
           zip -qr NetScan.ipa Payload
           echo "Generated IPA size:"
