@@ -42,6 +42,13 @@ public class TrafficMonitorService: ObservableObject {
     }
     
     private func tickMetrics() {
+        let currentInterface = NetworkInterfaceService.shared.getCurrentInterface()
+        guard currentInterface.isConnected else {
+            currentUploadKbps = 0.0
+            currentDownloadKbps = 0.0
+            return
+        }
+        
         // Read socket interface delta bytes or simulate realistic traffic activity
         let simulatedUp = Double.random(in: 18.0...145.0) + (Double.random(in: 0...100) > 85 ? Double.random(in: 200...800) : 0)
         let simulatedDown = Double.random(in: 45.0...420.0) + (Double.random(in: 0...100) > 80 ? Double.random(in: 500...2200) : 0)
@@ -68,6 +75,15 @@ public class TrafficMonitorService: ObservableObject {
     }
     
     public func updateDeviceTraffic(devices: inout [NetworkDevice]) {
+        let currentInterface = NetworkInterfaceService.shared.getCurrentInterface()
+        guard currentInterface.isLAN else {
+            for i in 0..<devices.count {
+                devices[i].uploadSpeedKbps = 0.0
+                devices[i].downloadSpeedKbps = 0.0
+            }
+            return
+        }
+        
         for i in 0..<devices.count {
             if !devices[i].isOnline {
                 devices[i].uploadSpeedKbps = 0.0

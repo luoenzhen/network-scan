@@ -36,6 +36,17 @@ public class NetworkToolsViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     public init() {
+        let iface = NetworkInterfaceService.shared.getCurrentInterface()
+        if iface.isLAN && !iface.gatewayIP.isEmpty {
+            self.pingTarget = iface.gatewayIP
+            self.portScanTarget = iface.gatewayIP
+            self.calcIP = iface.ipAddress.isEmpty ? "192.168.1.100" : iface.ipAddress
+            self.calcMask = iface.subnetMask.isEmpty ? "255.255.255.0" : iface.subnetMask
+        } else {
+            self.pingTarget = "1.1.1.1"
+            self.portScanTarget = "1.1.1.1"
+        }
+        
         PingDiagnosticService.shared.$history
             .receive(on: DispatchQueue.main)
             .assign(to: \.pingResults, on: self)
@@ -99,7 +110,8 @@ public class NetworkToolsViewModel: ObservableObject {
     
     public func sendWakeOnLAN() {
         let broadcast = NetworkInterfaceService.shared.getCurrentInterface().broadcastIP
-        WakeOnLANService.shared.sendWakePacket(macAddress: wolMacAddress, broadcastIP: broadcast) { [weak self] success, msg in
+        let targetBroadcast = broadcast.isEmpty ? "255.255.255.255" : broadcast
+        WakeOnLANService.shared.sendWakePacket(macAddress: wolMacAddress, broadcastIP: targetBroadcast) { [weak self] success, msg in
             DispatchQueue.main.async {
                 self?.wolSuccess = success
                 self?.wolStatusMessage = msg

@@ -22,6 +22,14 @@ public class DashboardViewModel: ObservableObject {
     public init() {
         self.networkInfo = NetworkInterfaceService.shared.getCurrentInterface()
         
+        // Auto-update dashboard metrics whenever network path or interface changes
+        NetworkInterfaceService.shared.$currentInterface
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] updated in
+                self?.networkInfo = updated
+            }
+            .store(in: &cancellables)
+        
         TrafficMonitorService.shared.$currentUploadKbps
             .receive(on: DispatchQueue.main)
             .assign(to: \.uploadSpeedKbps, on: self)
@@ -34,6 +42,7 @@ public class DashboardViewModel: ObservableObject {
     }
     
     public func refreshInterface() {
+        NetworkInterfaceService.shared.refreshInterface()
         self.networkInfo = NetworkInterfaceService.shared.getCurrentInterface()
     }
 }

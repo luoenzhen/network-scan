@@ -18,18 +18,20 @@ public struct NetworkInterfaceInfo: Codable, Equatable {
     public var bssid: String
     public var isConnected: Bool
     public var interfaceType: String
+    public var isLAN: Bool
     
     public init(
         interfaceName: String = "en0",
-        ipAddress: String = "192.168.1.105",
-        subnetMask: String = "255.255.255.0",
+        ipAddress: String = "",
+        subnetMask: String = "",
         cidrPrefix: Int = 24,
-        gatewayIP: String = "192.168.1.1",
-        broadcastIP: String = "192.168.1.255",
+        gatewayIP: String = "",
+        broadcastIP: String = "",
         ssid: String = "Wi-Fi Network",
         bssid: String = "00:11:22:33:44:55",
-        isConnected: Bool = true,
-        interfaceType: String = "Wi-Fi (802.11ax)"
+        isConnected: Bool = false,
+        interfaceType: String = "Wi-Fi (802.11ax)",
+        isLAN: Bool = false
     ) {
         self.interfaceName = interfaceName
         self.ipAddress = ipAddress
@@ -41,16 +43,30 @@ public struct NetworkInterfaceInfo: Codable, Equatable {
         self.bssid = bssid
         self.isConnected = isConnected
         self.interfaceType = interfaceType
+        self.isLAN = isLAN
     }
     
     public var subnetDescription: String {
-        return "\(gatewayIP)/\(cidrPrefix)"
+        guard isConnected else { return "Disconnected" }
+        guard isLAN else { return "Cellular (No LAN Subnet)" }
+        if !gatewayIP.isEmpty {
+            return "\(gatewayIP)/\(cidrPrefix)"
+        } else if !ipAddress.isEmpty {
+            return "\(ipAddress)/\(cidrPrefix)"
+        } else {
+            return "Local Network"
+        }
     }
     
     public var estimatedHostCount: Int {
+        guard isConnected && isLAN else { return 0 }
         if cidrPrefix >= 32 { return 1 }
         let hostBits = 32 - cidrPrefix
         let total = (1 << hostBits) - 2
         return max(total, 1)
+    }
+    
+    public var networkIdentifier: String {
+        return "\(isLAN ? "LAN" : "WAN")_\(interfaceType)_\(ssid)_\(gatewayIP)_\(subnetMask)"
     }
 }

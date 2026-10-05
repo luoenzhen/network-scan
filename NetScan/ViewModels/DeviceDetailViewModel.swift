@@ -105,7 +105,8 @@ public class DeviceDetailViewModel: ObservableObject {
     
     public func sendWakeOnLAN(completion: @escaping (Bool, String) -> Void) {
         let broadcast = NetworkInterfaceService.shared.getCurrentInterface().broadcastIP
-        WakeOnLANService.shared.sendWakePacket(macAddress: device.macAddress, broadcastIP: broadcast, completion: completion)
+        let targetBroadcast = broadcast.isEmpty ? "255.255.255.255" : broadcast
+        WakeOnLANService.shared.sendWakePacket(macAddress: device.macAddress, broadcastIP: targetBroadcast, completion: completion)
     }
     
     /// Queries the live Internet MAC vendor database and local discovery heuristics for this device

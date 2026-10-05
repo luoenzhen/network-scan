@@ -26,14 +26,69 @@ public class DeviceListViewModel: ObservableObject {
     @Published public var selectedFilterType: DeviceType? = nil
     @Published public var sortOption: DeviceSortOption = .ipAddress
     @Published public var lastScanTimestamp: Date? = nil
+    @Published public var isLANConnected: Bool = false
+    @Published public var currentSSID: String = ""
     
     private var trafficTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
+    private var lastNetworkId: String = ""
     
     public init() {
         OUIVendorDatabase.loadDatabaseIfNeeded()
-        startTrafficPolling()
-        loadDefaultSampleData()
+        
+        let initialInterface = NetworkInterfaceService.shared.getCurrentInterface()
+        self.isLANConnected = initialInterface.isLAN
+        self.currentSSID = initialInterface.ssid
+        self.lastNetworkId = initialInterface.networkIdentifier
+        
+        if initialInterface.isLAN {
+            startTrafficPolling()
+        }
+        
+        // Listen to live network changes from NetworkInterfaceService
+        NetworkInterfaceService.shared.$currentInterface
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newInterface in
+                self?.handleInterfaceChange(newInterface)
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func handleInterfaceChange(_ newInterface: NetworkInterfaceInfo) {
+        let currentNetId = newInterface.networkIdentifier
+        self.isLANConnected = newInterface.isLAN
+        self.currentSSID = newInterface.ssid
+        
+        if !newInterface.isLAN {
+            // Switched to Cellular (4G/5G) or Disconnected
+            if isScanning {
+                stopScan()
+            }
+            trafficTimer?.invalidate()
+            trafficTimer = nil
+            
+            // Clear old scan results from previous LAN network!
+            if !devices.isEmpty {
+                devices.removeAll()
+                lastScanTimestamp = nil
+            }
+        } else {
+            // Connected to Wi-Fi / LAN
+            if !lastNetworkId.isEmpty && lastNetworkId != currentNetId {
+                // Switched to a different Wi-Fi / LAN network
+                if isScanning {
+                    stopScan()
+                }
+                devices.removeAll()
+                lastScanTimestamp = nil
+            }
+            
+            if trafficTimer == nil && !isScanning && !devices.isEmpty {
+                startTrafficPolling()
+            }
+        }
+        
+        lastNetworkId = currentNetId
     }
     
     public var filteredAndSortedDevices: [NetworkDevice] {
@@ -72,14 +127,22 @@ public class DeviceListViewModel: ObservableObject {
     
     public func startScan() {
         guard !isScanning else { return }
+        
+        let interface = NetworkInterfaceService.shared.getCurrentInterface()
+        guard interface.isLAN else {
+            // Subnet scanning is only available on a Wi-Fi or Ethernet LAN
+            return
+        }
+        
         isScanning = true
         scanProgress = 0.0
+        
+        // Clear previous scan results before starting fresh scan
+        devices.removeAll()
         
         // Pause traffic timer during scan to prevent simultaneous data access
         trafficTimer?.invalidate()
         trafficTimer = nil
-        
-        let interface = NetworkInterfaceService.shared.getCurrentInterface()
         
         SubnetScannerService.shared.scanSubnet(
             interface: interface,
@@ -150,13 +213,15 @@ public class DeviceListViewModel: ObservableObject {
     public func stopScan() {
         SubnetScannerService.shared.cancelScan()
         isScanning = false
-        startTrafficPolling()
+        if isLANConnected && !devices.isEmpty {
+            startTrafficPolling()
+        }
     }
     
     private func startTrafficPolling() {
         trafficTimer?.invalidate()
         trafficTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self, !self.isScanning else { return }
+            guard let self = self, !self.isScanning, self.isLANConnected else { return }
             var currentDevices = self.devices
             TrafficMonitorService.shared.updateDeviceTraffic(devices: &currentDevices)
             self.devices = currentDevices
@@ -174,134 +239,5 @@ public class DeviceListViewModel: ObservableObject {
             }
         }
         return false
-    }
-    
-    private func loadDefaultSampleData() {
-        devices = [
-            NetworkDevice(
-                ipAddress: "192.168.1.1",
-                macAddress: "00:14:D1:4A:2B:10",
-                hostname: "Gateway.router",
-                vendor: "TP-Link Technologies",
-                deviceType: .router,
-                isOnline: true,
-                uploadSpeedKbps: 84.2,
-                downloadSpeedKbps: 340.5,
-                totalBytesSent: 25_400_000,
-                totalBytesReceived: 89_200_000,
-                latencyMs: 1.8,
-                openPorts: [53, 80, 443],
-                services: ["DNS", "HTTP Admin", "HTTPS"],
-                isLocalDevice: false,
-                isGateway: true
-            ),
-            NetworkDevice(
-                ipAddress: "192.168.1.105",
-                macAddress: "F0:18:98:3C:A1:7E",
-                hostname: "iPhone-16-Pro",
-                vendor: "Apple Inc.",
-                deviceType: .phone,
-                isOnline: true,
-                uploadSpeedKbps: 18.4,
-                downloadSpeedKbps: 76.2,
-                totalBytesSent: 4_300_000,
-                totalBytesReceived: 14_900_000,
-                latencyMs: 0.9,
-                openPorts: [5353],
-                services: ["mDNS Bonjour"],
-                isLocalDevice: true,
-                isGateway: false
-            ),
-            NetworkDevice(
-                ipAddress: "192.168.1.112",
-                macAddress: "AC:BC:32:8E:44:91",
-                hostname: "MacBook-Pro.local",
-                vendor: "Apple Inc.",
-                deviceType: .computer,
-                isOnline: true,
-                uploadSpeedKbps: 42.1,
-                downloadSpeedKbps: 184.6,
-                totalBytesSent: 18_900_000,
-                totalBytesReceived: 62_400_000,
-                latencyMs: 3.4,
-                openPorts: [22, 445, 5000],
-                services: ["SSH", "SMB File Sharing", "AirPlay"]
-            ),
-            NetworkDevice(
-                ipAddress: "192.168.1.140",
-                macAddress: "3C:E1:A1:2F:89:01",
-                hostname: "Living-Room-Chromecast",
-                vendor: "Google LLC",
-                deviceType: .tv,
-                isOnline: true,
-                uploadSpeedKbps: 4.8,
-                downloadSpeedKbps: 512.0,
-                totalBytesSent: 1_200_000,
-                totalBytesReceived: 145_000_000,
-                latencyMs: 7.2,
-                openPorts: [8008, 8009],
-                services: ["Google Cast HTTP", "Google Cast Protobuf"]
-            ),
-            NetworkDevice(
-                ipAddress: "192.168.1.185",
-                macAddress: "24:0A:C4:11:92:4B",
-                hostname: "ESP32-Smart-Plug",
-                vendor: "Espressif Inc.",
-                deviceType: .smartHome,
-                isOnline: true,
-                uploadSpeedKbps: 0.6,
-                downloadSpeedKbps: 1.2,
-                totalBytesSent: 340_000,
-                totalBytesReceived: 510_000,
-                latencyMs: 14.1,
-                openPorts: [80],
-                services: ["HTTP Dashboard"]
-            ),
-            NetworkDevice(
-                ipAddress: "192.168.1.200",
-                macAddress: "70:5A:0F:D4:21:66",
-                hostname: "HP-ColorLaserJet-M254",
-                vendor: "HP (Hewlett-Packard)",
-                deviceType: .printer,
-                isOnline: true,
-                uploadSpeedKbps: 0.0,
-                downloadSpeedKbps: 0.0,
-                totalBytesSent: 120_000,
-                totalBytesReceived: 2_400_000,
-                latencyMs: 12.0,
-                openPorts: [80, 443, 631, 9100],
-                services: ["HTTP Web Admin", "HTTPS", "IPP Printing", "RAW JetDirect"]
-            ),
-            NetworkDevice(
-                ipAddress: "192.168.1.220",
-                macAddress: "FC:0F:4B:99:38:12",
-                hostname: "PlayStation-5",
-                vendor: "Sony Interactive Entertainment",
-                deviceType: .gaming,
-                isOnline: true,
-                uploadSpeedKbps: 12.3,
-                downloadSpeedKbps: 280.4,
-                totalBytesSent: 8_700_000,
-                totalBytesReceived: 98_000_000,
-                latencyMs: 5.6,
-                openPorts: [9295, 9304],
-                services: ["Remote Play", "PSN Discovery"]
-            ),
-            NetworkDevice(
-                ipAddress: "192.168.1.135",
-                macAddress: "DC:A6:32:8B:22:E1",
-                hostname: "Raspberry-Pi-4B",
-                vendor: "Raspberry Pi Foundation",
-                deviceType: .computer,
-                isOnline: true,
-                uploadSpeedKbps: 8.4,
-                downloadSpeedKbps: 34.2,
-                totalBytesSent: 5_400_000,
-                totalBytesReceived: 18_200_000,
-                latencyMs: 3.1,
-                openPorts: [22, 80],
-                services: ["SSH Remote", "HTTP Web Server"]
-            )
-        ]
     }
 }

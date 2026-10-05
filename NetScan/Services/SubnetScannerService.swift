@@ -26,6 +26,11 @@ public class SubnetScannerService {
         onDeviceFound: @escaping (NetworkDevice) -> Void,
         onCompletion: @escaping ([NetworkDevice]) -> Void
     ) {
+        guard interface.isLAN else {
+            DispatchQueue.main.async { onCompletion([]) }
+            return
+        }
+        
         isCancelled = false
         
         // Dispatch entire scanning process to background queue so the UI thread NEVER blocks!
@@ -48,7 +53,7 @@ public class SubnetScannerService {
             let totalCount = Double(ips.count)
             var scannedCount = 0.0
             
-            // Immediately register local iPhone and Gateway
+            // Immediately register local iPhone
             let localDevice = NetworkDevice(
                 ipAddress: interface.ipAddress,
                 macAddress: "Self (Current Device)",
@@ -56,43 +61,52 @@ public class SubnetScannerService {
                 vendor: "Apple Inc.",
                 deviceType: .phone,
                 isOnline: true,
-                uploadSpeedKbps: 14.5,
-                downloadSpeedKbps: 42.8,
-                totalBytesSent: 1_250_000,
-                totalBytesReceived: 3_840_000,
-                latencyMs: 1.2,
+                uploadSpeedKbps: 0.0,
+                downloadSpeedKbps: 0.0,
+                totalBytesSent: 0,
+                totalBytesReceived: 0,
+                latencyMs: 1.0,
                 openPorts: [5353],
                 services: ["mDNS"],
                 isLocalDevice: true,
                 isGateway: false
             )
             
-            let gatewayDevice = NetworkDevice(
-                ipAddress: interface.gatewayIP,
-                macAddress: self.resolveARPMACAddress(ip: interface.gatewayIP) ?? "Router Gateway",
-                hostname: "Router.local",
-                vendor: "TP-Link / Wi-Fi AP",
-                deviceType: .router,
-                isOnline: true,
-                uploadSpeedKbps: 128.4,
-                downloadSpeedKbps: 450.2,
-                totalBytesSent: 15_800_000,
-                totalBytesReceived: 45_200_000,
-                latencyMs: 2.4,
-                openPorts: [53, 80, 443],
-                services: ["DNS", "HTTP Admin", "HTTPS"],
-                isLocalDevice: false,
-                isGateway: true
-            )
-            
             lock.lock()
-            discoveredDevices.append(gatewayDevice)
             discoveredDevices.append(localDevice)
             lock.unlock()
             
             DispatchQueue.main.async {
-                onDeviceFound(gatewayDevice)
                 onDeviceFound(localDevice)
+            }
+            
+            // Register gateway router if available
+            if !interface.gatewayIP.isEmpty {
+                let gatewayDevice = NetworkDevice(
+                    ipAddress: interface.gatewayIP,
+                    macAddress: self.resolveARPMACAddress(ip: interface.gatewayIP) ?? "Router Gateway",
+                    hostname: "Gateway.router",
+                    vendor: "Wi-Fi Router / AP",
+                    deviceType: .router,
+                    isOnline: true,
+                    uploadSpeedKbps: 0.0,
+                    downloadSpeedKbps: 0.0,
+                    totalBytesSent: 0,
+                    totalBytesReceived: 0,
+                    latencyMs: 2.0,
+                    openPorts: [53, 80, 443],
+                    services: ["DNS", "HTTP Admin", "HTTPS"],
+                    isLocalDevice: false,
+                    isGateway: true
+                )
+                
+                lock.lock()
+                discoveredDevices.append(gatewayDevice)
+                lock.unlock()
+                
+                DispatchQueue.main.async {
+                    onDeviceFound(gatewayDevice)
+                }
             }
             
             var lastReportedPercent = -1

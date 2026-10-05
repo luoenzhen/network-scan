@@ -76,12 +76,18 @@ public class PacketInspectorService: ObservableObject {
     }
     
     private func generateRealisticPacket() {
+        let iface = NetworkInterfaceService.shared.getCurrentInterface()
+        guard iface.isConnected else { return }
+        
+        let localIP = iface.ipAddress.isEmpty ? "192.168.1.105" : iface.ipAddress
+        let remoteOrGatewayIP = iface.isLAN && !iface.gatewayIP.isEmpty ? iface.gatewayIP : "1.1.1.1"
+        
         let samplePool: [NetworkPacket] = [
             // DNS Query
             NetworkPacket(
                 protocolType: .dns,
                 direction: .outbound,
-                sourceIP: "192.168.1.105",
+                sourceIP: localIP,
                 sourcePort: 54218,
                 destinationIP: "1.1.1.1",
                 destinationPort: 53,
@@ -96,7 +102,7 @@ public class PacketInspectorService: ObservableObject {
                 direction: .inbound,
                 sourceIP: "1.1.1.1",
                 sourcePort: 53,
-                destinationIP: "192.168.1.105",
+                destinationIP: localIP,
                 destinationPort: 54218,
                 packetLength: 90,
                 summary: "Standard query response 0x7a3c A 140.82.121.4",
@@ -107,7 +113,7 @@ public class PacketInspectorService: ObservableObject {
             NetworkPacket(
                 protocolType: .https,
                 direction: .outbound,
-                sourceIP: "192.168.1.105",
+                sourceIP: localIP,
                 sourcePort: 49832,
                 destinationIP: "140.82.121.4",
                 destinationPort: 443,
@@ -122,7 +128,7 @@ public class PacketInspectorService: ObservableObject {
                 direction: .inbound,
                 sourceIP: "140.82.121.4",
                 sourcePort: 443,
-                destinationIP: "192.168.1.105",
+                destinationIP: localIP,
                 destinationPort: 49832,
                 packetLength: 66,
                 summary: "443 → 49832 [ACK] Seq=1 Ack=518 Win=65535",
@@ -133,7 +139,7 @@ public class PacketInspectorService: ObservableObject {
             NetworkPacket(
                 protocolType: .mdns,
                 direction: .outbound,
-                sourceIP: "192.168.1.105",
+                sourceIP: localIP,
                 sourcePort: 5353,
                 destinationIP: "224.0.0.251",
                 destinationPort: 5353,
@@ -146,22 +152,22 @@ public class PacketInspectorService: ObservableObject {
             NetworkPacket(
                 protocolType: .http,
                 direction: .outbound,
-                sourceIP: "192.168.1.105",
+                sourceIP: localIP,
                 sourcePort: 51234,
-                destinationIP: "192.168.1.1",
+                destinationIP: remoteOrGatewayIP,
                 destinationPort: 80,
                 packetLength: 184,
                 summary: "GET /api/system/status HTTP/1.1",
                 payloadHex: "47 45 54 20 2f 61 70 69 2f 73 79 73 74 65 6d 2f 73 74 61 74 75 73 20 48 54 54 50 2f 31 2e 31 0d 0a 48 6f 73 74 3a 20 31 39 32 2e 31 36 38 2e 31 2e 31 0d 0a",
-                payloadAscii: "GET /api/system/status HTTP/1.1..Host: 192.168.1.1.."
+                payloadAscii: "GET /api/system/status HTTP/1.1..Host: \(remoteOrGatewayIP).."
             ),
             // ICMP Ping
             NetworkPacket(
                 protocolType: .icmp,
                 direction: .outbound,
-                sourceIP: "192.168.1.105",
+                sourceIP: localIP,
                 sourcePort: 0,
-                destinationIP: "192.168.1.1",
+                destinationIP: remoteOrGatewayIP,
                 destinationPort: 0,
                 packetLength: 84,
                 summary: "Echo (ping) request id=0x192a seq=1 ttl=64",
@@ -172,9 +178,9 @@ public class PacketInspectorService: ObservableObject {
             NetworkPacket(
                 protocolType: .icmp,
                 direction: .inbound,
-                sourceIP: "192.168.1.1",
+                sourceIP: remoteOrGatewayIP,
                 sourcePort: 0,
-                destinationIP: "192.168.1.105",
+                destinationIP: localIP,
                 destinationPort: 0,
                 packetLength: 84,
                 summary: "Echo (ping) reply id=0x192a seq=1 ttl=64 (time=2.1ms)",
