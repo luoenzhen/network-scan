@@ -39,7 +39,7 @@ public struct AltStoreInfoView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Wi-Fi SSID Info Access")
                             .font(.headline)
-                        Text("Allows reading Wi-Fi network SSID and gateway details.")
+                        Text("The Wi-Fi name may require additional signing capabilities and iOS permissions. A generic network label is used when unavailable.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -49,11 +49,11 @@ public struct AltStoreInfoView: View {
             
             Section(header: Text("AltStore Source Repository")) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("You can also add this project as a direct AltStore Source feed by pasting the source URL in AltStore -> Sources -> '+'.")
+                    Text("The repository includes an AltStore source template. Configure its URLs for your own hosted release before adding it in AltStore -> Sources -> '+'.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text("https://raw.githubusercontent.com/netscan/altstore/main/apps.json")
+                    Text("Use the source URL provided by your release publisher.")
                         .font(.system(size: 11, design: .monospaced))
                         .padding(8)
                         .background(Color(.secondarySystemBackground))

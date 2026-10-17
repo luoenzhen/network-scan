@@ -23,7 +23,12 @@ jobs:
           fi
           xcodebuild -version
 
-      - name: Build and Archive
+      - name: Run Regression Tests
+        run: |
+          python3 Scripts/test_project.py
+          swift test
+
+      - name: Archive iOS App
         run: |
           mkdir -p build/Payload
           
@@ -39,25 +44,7 @@ jobs:
 
       - name: Package Payload into IPA
         run: |
-          APP_PATH=$(find build/NetScan.xcarchive/Products/Applications -name "*.app" | head -n 1)
-          echo "Found compiled app at: $APP_PATH"
-          rm -rf build/Payload
-          mkdir -p build/Payload
-          cp -R "$APP_PATH" build/Payload/
-          
-          # Clean any stale entitlements or hidden metadata
-          rm -f build/Payload/NetScan.app/*.entitlements
-          find build/Payload -name ".DS_Store" -delete
-          
-          # Ensure standard Unix executable and directory permissions for AltStore
-          find build/Payload -type d -exec chmod 755 {} +
-          find build/Payload -type f -exec chmod 644 {} +
-          chmod 755 build/Payload/NetScan.app/NetScan
-          
-          cd build
-          zip -qr NetScan.ipa Payload
-          echo "Generated IPA size:"
-          ls -lh NetScan.ipa
+          python3 Scripts/package_ipa.py build/NetScan.xcarchive/Products/Applications/NetScan.app --output build/NetScan.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4

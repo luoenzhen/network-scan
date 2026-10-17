@@ -33,7 +33,9 @@ public class NetworkToolsViewModel: ObservableObject {
     @Published public var calcIP: String = "192.168.1.100"
     @Published public var calcMask: String = "255.255.255.0"
     
-    private var cancellables = Set<AnyCancellable>()
+
+    private let pingService = PingDiagnosticService()
+    private let portScanner = PortScannerService()
     
     public init() {
         let iface = NetworkInterfaceService.shared.getCurrentInterface()
@@ -47,42 +49,36 @@ public class NetworkToolsViewModel: ObservableObject {
             self.portScanTarget = "1.1.1.1"
         }
         
-        PingDiagnosticService.shared.$history
+        pingService.$history
             .receive(on: DispatchQueue.main)
-            .assign(to: \.pingResults, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$pingResults)
             
-        PingDiagnosticService.shared.$avgRtt
+        pingService.$avgRtt
             .receive(on: DispatchQueue.main)
-            .assign(to: \.avgRtt, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$avgRtt)
             
-        PingDiagnosticService.shared.$minRtt
+        pingService.$minRtt
             .receive(on: DispatchQueue.main)
-            .assign(to: \.minRtt, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$minRtt)
             
-        PingDiagnosticService.shared.$maxRtt
+        pingService.$maxRtt
             .receive(on: DispatchQueue.main)
-            .assign(to: \.maxRtt, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$maxRtt)
             
-        PingDiagnosticService.shared.$packetLossPercent
+        pingService.$packetLossPercent
             .receive(on: DispatchQueue.main)
-            .assign(to: \.packetLoss, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$packetLoss)
             
-        PingDiagnosticService.shared.$isRunning
+        pingService.$isRunning
             .receive(on: DispatchQueue.main)
-            .assign(to: \.isPinging, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$isPinging)
     }
     
     public func togglePing() {
         if isPinging {
-            PingDiagnosticService.shared.stop()
+            pingService.stop()
         } else {
-            PingDiagnosticService.shared.startPinging(host: pingTarget)
+            pingService.startPinging(host: pingTarget)
         }
     }
     
@@ -92,7 +88,7 @@ public class NetworkToolsViewModel: ObservableObject {
         portProgress = 0.0
         portResults.removeAll()
         
-        PortScannerService.shared.scanPorts(
+        portScanner.scanPorts(
             targetIP: portScanTarget,
             onPortFound: { [weak self] res in
                 self?.portResults.append(res)

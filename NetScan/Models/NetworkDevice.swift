@@ -115,15 +115,18 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
     }
     
     public var formattedUpload: String {
+        guard isLocalDevice else { return "Unavailable" }
         return String(format: "%.1f KB/s", uploadSpeedKbps)
     }
     
     public var formattedDownload: String {
+        guard isLocalDevice else { return "Unavailable" }
         return String(format: "%.1f KB/s", downloadSpeedKbps)
     }
     
     public var formattedTotalTransfer: String {
-        let total = Double(totalBytesSent + totalBytesReceived)
+        guard isLocalDevice else { return "Unavailable" }
+        let total = Double(totalBytesSent) + Double(totalBytesReceived)
         if total >= 1_000_000_000 {
             return String(format: "%.2f GB", total / 1_000_000_000)
         } else if total >= 1_000_000 {

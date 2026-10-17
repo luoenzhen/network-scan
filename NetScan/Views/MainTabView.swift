@@ -12,6 +12,7 @@ public struct MainTabView: View {
     @StateObject private var deviceListVM = DeviceListViewModel()
     @StateObject private var packetStreamVM = PacketStreamViewModel()
     @State private var selectedTab = 0
+    @Environment(\.scenePhase) private var scenePhase
     
     public init() {}
     
@@ -48,5 +49,10 @@ public struct MainTabView: View {
                 .tag(4)
         }
         .accentColor(.blue)
+        .onChange(of: scenePhase) { phase in
+            if phase == .background {
+                deviceListVM.stopScan()
+            }
+        }
     }
 }

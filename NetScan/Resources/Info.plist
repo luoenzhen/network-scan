@@ -24,6 +24,11 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NetScan requires access to your local Wi-Fi network to scan connected devices, measure live upload/download traffic in KB/s, and display packet diagnostics.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>

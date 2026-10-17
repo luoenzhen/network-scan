@@ -73,7 +73,7 @@ public struct SettingsView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("NetScan is a comprehensive local network analyzer designed for iOS, featuring live subnet scanning, per-device throughput (KB/s), protocol packet decoding, port auditing, and AltStore support.")
+                        Text("NetScan provides local device discovery, this device's traffic counters, TCP latency checks, port auditing, and Wake-on-LAN. Remote device traffic is unavailable. The packet inspector displays generated examples.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

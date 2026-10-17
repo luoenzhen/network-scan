@@ -8,12 +8,15 @@
 
 import SwiftUI
 
+@MainActor
 public struct DeviceDetailView: View {
     @StateObject private var viewModel: DeviceDetailViewModel
     @State private var wolAlertMessage: String?
     @State private var showWolAlert = false
+    private let sourceDevice: NetworkDevice
     
     public init(device: NetworkDevice, onUpdate: ((NetworkDevice) -> Void)? = nil) {
+        sourceDevice = device
         _viewModel = StateObject(wrappedValue: DeviceDetailViewModel(device: device, onDeviceUpdated: onUpdate))
     }
     
@@ -44,16 +47,16 @@ public struct DeviceDetailView: View {
                     
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(Color.green)
+                            .fill(viewModel.device.isOnline ? Color.green : Color.secondary)
                             .frame(width: 8, height: 8)
                         Text(viewModel.device.isOnline ? "Online & Reachable" : "Offline")
                             .font(.caption)
                             .fontWeight(.semibold)
-                            .foregroundColor(.green)
+                            .foregroundColor(viewModel.device.isOnline ? .green : .secondary)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.12))
+                    .background((viewModel.device.isOnline ? Color.green : Color.secondary).opacity(0.12))
                     .cornerRadius(12)
                 }
                 .frame(maxWidth: .infinity)
@@ -61,7 +64,7 @@ public struct DeviceDetailView: View {
             }
             
             // Live Bandwidth Traffic Section (Upload & Download in KB/s)
-            Section(header: Text("Live Network Traffic")) {
+            Section(header: Text("Local Device Traffic"), footer: Text("iOS does not expose other devices' traffic. Remote readings are unavailable.")) {
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -260,7 +263,7 @@ public struct DeviceDetailView: View {
             }
             
             // Device Specific Packets
-            Section(header: Text("Recent Packets (\(viewModel.relatedPackets.count))")) {
+            Section(header: Text("Sample Packets (\(viewModel.relatedPackets.count))"), footer: Text("Demonstration data; these packets are generated samples, not captured traffic.")) {
                 if viewModel.relatedPackets.isEmpty {
                     Text("No captured packets associated with this IP yet.")
                         .font(.subheadline)
@@ -286,6 +289,9 @@ public struct DeviceDetailView: View {
         }
         .onAppear {
             viewModel.startPacketObserving()
+        }
+        .onChange(of: sourceDevice) { updated in
+            viewModel.updateLiveDevice(updated)
         }
         .onDisappear {
             viewModel.stopPacketObserving()

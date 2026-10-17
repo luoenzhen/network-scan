@@ -8,6 +8,7 @@
 
 import Foundation
 import Combine
+import Darwin
 
 public class TrafficMonitorService: ObservableObject {
     public static let shared = TrafficMonitorService()
@@ -22,6 +23,7 @@ public class TrafficMonitorService: ObservableObject {
     
     private var timer: Timer?
     private let maxHistoryPoints = 30
+    private var previousSample: (network: String, sent: UInt64, received: UInt64, time: Date)?
     
     public init() {
         startMonitoring()
@@ -39,6 +41,7 @@ public class TrafficMonitorService: ObservableObject {
     public func stopMonitoring() {
         timer?.invalidate()
         timer = nil
+        previousSample = nil
     }
     
     private func tickMetrics() {
@@ -46,21 +49,34 @@ public class TrafficMonitorService: ObservableObject {
         guard currentInterface.isConnected else {
             currentUploadKbps = 0.0
             currentDownloadKbps = 0.0
+            previousSample = nil
             return
         }
-        
-        // Read socket interface delta bytes or simulate realistic traffic activity
-        let simulatedUp = Double.random(in: 18.0...145.0) + (Double.random(in: 0...100) > 85 ? Double.random(in: 200...800) : 0)
-        let simulatedDown = Double.random(in: 45.0...420.0) + (Double.random(in: 0...100) > 80 ? Double.random(in: 500...2200) : 0)
-        
-        currentUploadKbps = round(simulatedUp * 10) / 10
-        currentDownloadKbps = round(simulatedDown * 10) / 10
+        guard let counters = Self.interfaceBytes(name: currentInterface.interfaceName) else {
+            currentUploadKbps = 0
+            currentDownloadKbps = 0
+            previousSample = nil
+            return
+        }
+        let now = Date()
+        let previous = previousSample
+        previousSample = (currentInterface.networkIdentifier, counters.sent, counters.received, now)
+        guard let previous = previous, previous.network == currentInterface.networkIdentifier,
+              counters.sent >= previous.sent, counters.received >= previous.received,
+              now.timeIntervalSince(previous.time) > 0 else {
+            currentUploadKbps = 0
+            currentDownloadKbps = 0
+            return
+        }
+        let elapsed = now.timeIntervalSince(previous.time)
+        let deltaUpBytes = counters.sent - previous.sent
+        let deltaDownBytes = counters.received - previous.received
+        currentUploadKbps = Double(deltaUpBytes) / elapsed / 1024
+        currentDownloadKbps = Double(deltaDownBytes) / elapsed / 1024
         
         if currentUploadKbps > peakUploadKbps { peakUploadKbps = currentUploadKbps }
         if currentDownloadKbps > peakDownloadKbps { peakDownloadKbps = currentDownloadKbps }
         
-        let deltaUpBytes = UInt64(currentUploadKbps * 1024.0)
-        let deltaDownBytes = UInt64(currentDownloadKbps * 1024.0)
         totalBytesUploaded += deltaUpBytes
         totalBytesDownloaded += deltaDownBytes
         
@@ -85,31 +101,34 @@ public class TrafficMonitorService: ObservableObject {
         }
         
         for i in 0..<devices.count {
-            if !devices[i].isOnline {
+            if !devices[i].isOnline || !devices[i].isLocalDevice {
                 devices[i].uploadSpeedKbps = 0.0
                 devices[i].downloadSpeedKbps = 0.0
                 continue
             }
             
-            // Jitter traffic rates slightly for realistic real-time readings in KB/s
-            let variance = Double.random(in: -4.0...4.0)
-            var newUp = max(0.0, devices[i].uploadSpeedKbps + variance)
-            var newDown = max(0.0, devices[i].downloadSpeedKbps + (variance * 2.5))
-            
-            // Periodically generate burst activity for busy devices (e.g. Gateway or active client)
-            if devices[i].isGateway {
-                newUp = Double.random(in: 80.0...350.0)
-                newDown = Double.random(in: 200.0...1200.0)
-            } else if Double.random(in: 0...100) > 92 {
-                newUp = Double.random(in: 20.0...180.0)
-                newDown = Double.random(in: 80.0...650.0)
-            }
-            
-            devices[i].uploadSpeedKbps = round(newUp * 10) / 10
-            devices[i].downloadSpeedKbps = round(newDown * 10) / 10
-            
-            devices[i].totalBytesSent += UInt64(devices[i].uploadSpeedKbps * 1024.0)
-            devices[i].totalBytesReceived += UInt64(devices[i].downloadSpeedKbps * 1024.0)
+            devices[i].uploadSpeedKbps = currentUploadKbps
+            devices[i].downloadSpeedKbps = currentDownloadKbps
+            devices[i].totalBytesSent = totalBytesUploaded
+            devices[i].totalBytesReceived = totalBytesDownloaded
         }
+    }
+
+    private static func interfaceBytes(name: String) -> (sent: UInt64, received: UInt64)? {
+        var addresses: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&addresses) == 0 else { return nil }
+        defer { freeifaddrs(addresses) }
+        var pointer = addresses
+        while let current = pointer {
+            let interface = current.pointee
+            if String(cString: interface.ifa_name) == name,
+               interface.ifa_addr?.pointee.sa_family == UInt8(AF_LINK),
+               let data = interface.ifa_data {
+                let counters = data.assumingMemoryBound(to: if_data.self).pointee
+                return (UInt64(counters.ifi_obytes), UInt64(counters.ifi_ibytes))
+            }
+            pointer = interface.ifa_next
+        }
+        return nil
     }
 }

@@ -58,6 +58,7 @@ public struct NetworkPacket: Identifiable, Codable, Equatable {
     public let summary: String
     public let payloadHex: String
     public let payloadAscii: String
+    public let isSample: Bool
     
     public init(
         id: UUID = UUID(),
@@ -71,7 +72,8 @@ public struct NetworkPacket: Identifiable, Codable, Equatable {
         packetLength: Int,
         summary: String,
         payloadHex: String = "",
-        payloadAscii: String = ""
+        payloadAscii: String = "",
+        isSample: Bool = false
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -85,6 +87,7 @@ public struct NetworkPacket: Identifiable, Codable, Equatable {
         self.summary = summary
         self.payloadHex = payloadHex
         self.payloadAscii = payloadAscii
+        self.isSample = isSample
     }
     
     public var formattedTime: String {

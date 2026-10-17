@@ -25,7 +25,7 @@ public struct PacketInspectorView: View {
                         Circle()
                             .fill(viewModel.isCapturing ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
-                        Text(viewModel.isCapturing ? "LIVE CAPTURE ACTIVE" : "CAPTURE PAUSED")
+                        Text(viewModel.isCapturing ? "SAMPLE STREAM ACTIVE" : "SAMPLE STREAM PAUSED")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(viewModel.isCapturing ? .green : .orange)
                     }
@@ -59,6 +59,12 @@ public struct PacketInspectorView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 .background(Color(.secondarySystemBackground))
+
+                Text("Generated demonstration packets. This app does not capture live network traffic.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 6)
                 
                 // Protocol Filter Chips
                 ScrollView(.horizontal, showsIndicators: false) {

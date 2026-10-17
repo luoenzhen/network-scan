@@ -15,7 +15,7 @@ public struct DeviceListView: View {
     }
     
     public var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Scan Progress Banner
                 if viewModel.isScanning {
@@ -131,9 +131,7 @@ public struct DeviceListView: View {
                     List {
                         Section(header: listHeader) {
                             ForEach(viewModel.filteredAndSortedDevices, id: \.id) { device in
-                                NavigationLink(destination: DeviceDetailView(device: device, onUpdate: { updated in
-                                    viewModel.updateDevice(updated)
-                                })) {
+                                NavigationLink(value: device.id) {
                                     DeviceRowView(device: device)
                                 }
                             }
@@ -149,6 +147,16 @@ public struct DeviceListView: View {
                 }
             }
             .navigationTitle("Network Devices")
+            .navigationDestination(for: UUID.self) { id in
+                if let device = viewModel.devices.first(where: { $0.id == id }) {
+                    DeviceDetailView(device: device, onUpdate: { updated in
+                        viewModel.updateDevice(updated)
+                    })
+                } else {
+                    Text("This device is no longer in the current scan. Return to Devices to scan again.")
+                        .padding()
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if viewModel.isLANConnected && !viewModel.devices.isEmpty {

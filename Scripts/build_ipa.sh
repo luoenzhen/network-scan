@@ -4,7 +4,7 @@
 # Builds NetScan into an installable .ipa ready for AltStore or Sideloadly.
 # ==============================================================================
 
-set -e
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NETSCAN_DIR="$PROJECT_DIR/NetScan"
@@ -33,25 +33,18 @@ if command -v xcodebuild >/dev/null 2>&1; then
     echo "Archive completed: $ARCHIVE_PATH"
     
     # 2. Package into Payload structure
-    APP_BUNDLE=$(find "$ARCHIVE_PATH/Products/Applications" -name "*.app" | head -n 1)
+    APP_BUNDLE="$ARCHIVE_PATH/Products/Applications/NetScan.app"
     if [ -d "$APP_BUNDLE" ]; then
-        PAYLOAD_DIR="$BUILD_DIR/Payload"
-        rm -rf "$PAYLOAD_DIR"
-        mkdir -p "$PAYLOAD_DIR"
-        cp -R "$APP_BUNDLE" "$PAYLOAD_DIR/"
-        
-        # Zip into NetScan.ipa
-        cd "$BUILD_DIR"
-        zip -qr "$IPA_PATH" Payload
+        python3 "$PROJECT_DIR/Scripts/package_ipa.py" "$APP_BUNDLE" --output "$IPA_PATH"
         echo "Successfully created NetScan.ipa at $IPA_PATH"
     else
         echo "Error: Could not locate .app bundle inside archive."
         exit 1
     fi
 else
-    echo "xcodebuild not found in this environment (Linux/WSL)."
-    echo "Using Python packaging fallback to build AltStore-ready IPA bundle..."
-    python3 "$PROJECT_DIR/Scripts/package_ipa.py"
+    echo "Xcode is required to compile the iOS app. Build on macOS or use the GitHub Actions build."
+    echo "To package an existing compiled iPhoneOS .app, run Scripts/package_ipa.py with its path."
+    exit 1
 fi
 
 echo "=== Packaging Complete ==="

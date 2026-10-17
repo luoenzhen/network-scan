@@ -130,7 +130,7 @@ public struct DashboardView: View {
                     // Live Traffic Speeds (Upload / Download in KB/s)
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("Real-Time Network Traffic")
+                            Text("This Device's Network Traffic")
                                 .font(.headline)
                             Spacer()
                             Text("Updated every 1s")

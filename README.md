@@ -1,40 +1,43 @@
-# NetScan: iOS Local Network Scanner & Packet Traffic Inspector
+# NetScan: iOS Local Network Diagnostics
 
 A native iOS network audit and diagnostic application designed for iPhone and sideloadable via **AltStore**, **Sideloadly**, or **Xcode**.
 
-NetScan scans all active devices connected to the same Wi-Fi network, measures live upload and download throughput in **KB/second** for each device, inspects network packets in real time with protocol decoding and hex dumps, and provides a suite of network diagnostics.
+NetScan discovers reachable IPv4 devices on a local network and provides TCP port scans, TCP response-time checks, and Wake-on-LAN. It measures this device's interface traffic in **KB/second**. Other devices' traffic and MAC addresses are unavailable through the current iOS implementation. The packet inspector displays clearly labeled generated examples, not captured traffic.
+
+**Build status:** source changes do not update the checked-in `NetScan.ipa`. Rebuild with Xcode or download a newly built GitHub Actions artifact before testing these fixes. The tracked `build/` directory is also an old artifact. The Python packager requires an existing compiled iPhoneOS `.app`; it cannot compile an iOS app on Windows. The AltStore feed and source URL are templates and must be configured for your own repository before use.
 
 ---
 
 ## 📱 Features
 
 1. **Subnet Device Discovery & Identification**
-   - Discovers all active devices connected to the local Wi-Fi subnet.
-   - Identifies friendly device hostnames, mDNS / Bonjour advertised names, and hardware vendors (via embedded IEEE OUI database).
+   - Probes local subnet addresses on TCP port 80; devices that silently filter this probe may be missed.
+   - Respects the subnet mask. Large networks are limited to a 4096-address window containing this device.
+   - Offers hostname and HTTP identity lookup, plus an embedded IEEE OUI database when a MAC is supplied. Bonjour browsing is available as a service but is not yet connected to device identity enrichment.
    - Categorizes devices automatically (Smartphones, Computers, Routers, Smart Home/IoT, Printers, Gaming consoles, Smart TVs).
    - Distinguishes the default gateway router and the local iPhone.
 
-2. **Live Device Traffic Monitor (KB/second)**
-   - Displays real-time **Upload Speed** (↑ KB/s) and **Download Speed** (↓ KB/s) per device.
-   - Tracks network-wide aggregate throughput with visual gauge meters.
-   - Calculates total session data transferred (KB, MB, GB).
+2. **Local Device Traffic Monitor (KB/second)**
+   - Reads upload/download counters for this device's active interface.
+   - Displays remote device traffic as unavailable.
+   - Tracks local session totals and resets rate baselines after network changes or counter resets.
 
-3. **Packet Inspector & Protocol Analyzer**
-   - Real-time packet stream showing inbound (download) and outbound (upload) traffic.
-   - Decodes protocol layers: **TCP**, **UDP**, **DNS**, **HTTP**, **HTTPS / TLS**, **ICMP**, **mDNS / Bonjour**, and **ARP**.
+3. **Sample Packet Inspector**
+   - Generated demonstration stream showing example inbound/outbound packets.
+   - Examples cover **TCP**, **UDP**, **DNS**, **HTTP**, **HTTPS / TLS**, **ICMP**, **mDNS / Bonjour**, and **ARP**.
    - Displays endpoints (Source IP:Port → Destination IP:Port), packet length, and protocol summaries.
    - Full packet detail inspector with **16-byte aligned Hex Dump** and **printable ASCII representation**.
-   - Filter by protocol, search by keyword or IP, and export packets to JSON.
+   - Filter by protocol, search by keyword or IP, and view JSON for copying. JSON records include `isSample` to identify generated packets.
 
 4. **Network Diagnostic Toolbox**
-   - **Continuous Ping Monitor**: Measures round-trip time (RTT in ms), jitter, min/avg/max latency, and packet loss.
+   - **Continuous TCP Probe**: Measures TCP port 80 response time (including explicit refusals), min/avg/max latency, and failed-probe percentage over the last 50 results. This is not ICMP ping.
    - **Multi-Threaded Port Scanner**: Audits open TCP ports (HTTP 80, HTTPS 443, SSH 22, DNS 53, SMB 445, RTSP 554, IPP 631, etc.) with service identification.
    - **Wake-on-LAN (WOL)**: Broadcasts UDP magic packets across the subnet to wake sleeping computers.
 
 5. **AltStore & Sideloading Ready**
    - Pre-configured `Info.plist` with required iOS network privacy keys (`NSLocalNetworkUsageDescription` and `NSBonjourServices`).
-   - Sideloadable `.ipa` bundle generator script (`package_ipa.py` / `build_ipa.sh`).
-   - AltStore Community Source repository JSON (`AltStore/altstore-source.json`).
+   - Builds using Xcode (`build_ipa.sh`) and packages a compiled `.app` (`package_ipa.py`).
+   - AltStore source template (`AltStore/altstore-source.json`).
 
 ---
 
@@ -68,14 +71,13 @@ network-scan/
 │   ├── Views/
 │   └── Resources/
 │       ├── Info.plist                      # Local Network permissions & Bonjour services
-│       └── NetScan.entitlements            # NetworkExtension & Wi-Fi entitlements
 ├── AltStore/
 │   ├── altstore-source.json                # AltStore repository source feed
 │   └── exportOptions.plist                 # IPA export options
 ├── Scripts/
 │   ├── build_ipa.sh                        # Bash script to package NetScan.ipa
-│   └── package_ipa.py                      # Cross-platform Python script to create ready .ipa
-└── NetScan.ipa                             # Packaged AltStore-ready iOS IPA archive
+│   └── package_ipa.py                      # Cross-platform packager for compiled iPhoneOS .app
+└── NetScan.ipa                             # Existing binary; rebuild after source changes
 ```
 
 ---
@@ -109,3 +111,23 @@ network-scan/
 2. Select your connected iPhone or an iOS Simulator target.
 3. In the project settings under **Signing & Capabilities**, select your Apple Developer Team.
 4. Press `Cmd + R` to build and run directly.
+
+To build and package without signing for AltStore, run `bash Scripts/build_ipa.sh` on macOS with Xcode. To package a previously compiled app on any platform:
+
+```sh
+python3 Scripts/package_ipa.py /path/to/NetScan.app --output /path/to/NetScan.ipa
+```
+
+## Verification
+
+Portable checks: `python3 Scripts/test_project.py`. On macOS, run `swift test` for networking/model regressions, then build the iOS app with Xcode. The GitHub Actions workflow runs these checks before archiving and packaging.
+
+Device smoke test after installing a fresh build:
+
+1. Allow Local Network access; scan and open several device details, including an unknown device and this iPhone.
+2. Use **Find Online**, return while it runs, and reopen the device. Try unavailable hosts as well as a known HTTP device.
+3. Start a port scan and a TCP probe; navigate away and use the tools screen. Check that screens keep independent results and remain responsive.
+4. Stop/restart discovery, change Wi-Fi networks, and switch to cellular/background during a scan. Old results must not reappear.
+5. Verify `/25` and `/23` networks, local traffic during a download, remote traffic marked unavailable, sample packet labels/JSON, and Wake-on-LAN success/failure feedback.
+
+The Windows development environment cannot compile Apple frameworks or run an iOS simulator. Passing portable checks alone does not confirm an iOS build or device behavior.

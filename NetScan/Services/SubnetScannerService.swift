@@ -12,10 +12,29 @@ import Network
 import Darwin
 #endif
 
+// Each run owns its cancellation state, so restarting cannot revive old work.
+final class ScanCancellation {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
+    }
+}
+
 public class SubnetScannerService {
     public static let shared = SubnetScannerService()
     
-    private var isCancelled = false
+    private var currentScan: ScanCancellation?
+    private let scanLock = NSLock()
     private let scanQueue = DispatchQueue(label: "com.netscan.scanner", attributes: .concurrent)
     
     public init() {}
@@ -31,7 +50,14 @@ public class SubnetScannerService {
             return
         }
         
-        isCancelled = false
+        let scan = ScanCancellation()
+        scanLock.lock()
+        currentScan?.cancel()
+        currentScan = scan
+        scanLock.unlock()
+        let defaults = UserDefaults.standard
+        let timeout = min(max(defaults.object(forKey: "scanTimeout") as? Double ?? 0.4, 0.1), 1.5)
+        let concurrency = min(max(defaults.object(forKey: "maxConcurrentProbes") as? Int ?? 8, 4), 32)
         
         // Dispatch entire scanning process to background queue so the UI thread NEVER blocks!
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -43,7 +69,7 @@ public class SubnetScannerService {
             )
             
             guard !ips.isEmpty else {
-                DispatchQueue.main.async { onCompletion([]) }
+                DispatchQueue.main.async { if !scan.isCancelled { onCompletion([]) } }
                 return
             }
             
@@ -65,9 +91,7 @@ public class SubnetScannerService {
                 downloadSpeedKbps: 0.0,
                 totalBytesSent: 0,
                 totalBytesReceived: 0,
-                latencyMs: 1.0,
-                openPorts: [5353],
-                services: ["mDNS"],
+                latencyMs: 0.0,
                 isLocalDevice: true,
                 isGateway: false
             )
@@ -77,36 +101,7 @@ public class SubnetScannerService {
             lock.unlock()
             
             DispatchQueue.main.async {
-                onDeviceFound(localDevice)
-            }
-            
-            // Register gateway router if available
-            if !interface.gatewayIP.isEmpty {
-                let gatewayDevice = NetworkDevice(
-                    ipAddress: interface.gatewayIP,
-                    macAddress: self.resolveARPMACAddress(ip: interface.gatewayIP) ?? "Router Gateway",
-                    hostname: "Gateway.router",
-                    vendor: "Wi-Fi Router / AP",
-                    deviceType: .router,
-                    isOnline: true,
-                    uploadSpeedKbps: 0.0,
-                    downloadSpeedKbps: 0.0,
-                    totalBytesSent: 0,
-                    totalBytesReceived: 0,
-                    latencyMs: 2.0,
-                    openPorts: [53, 80, 443],
-                    services: ["DNS", "HTTP Admin", "HTTPS"],
-                    isLocalDevice: false,
-                    isGateway: true
-                )
-                
-                lock.lock()
-                discoveredDevices.append(gatewayDevice)
-                lock.unlock()
-                
-                DispatchQueue.main.async {
-                    onDeviceFound(gatewayDevice)
-                }
+                if !scan.isCancelled { onDeviceFound(localDevice) }
             }
             
             var lastReportedPercent = -1
@@ -123,18 +118,18 @@ public class SubnetScannerService {
                 
                 if shouldDispatch {
                     DispatchQueue.main.async {
-                        onProgress(progress)
+                        if !scan.isCancelled { onProgress(progress) }
                     }
                 }
             }
             
             // Safe concurrency limit
-            let semaphore = DispatchSemaphore(value: 8)
+            let semaphore = DispatchSemaphore(value: concurrency)
             
             for ip in ips {
-                if self.isCancelled { break }
+                if scan.isCancelled { break }
                 
-                if ip == interface.ipAddress || ip == interface.gatewayIP {
+                if ip == interface.ipAddress {
                     lock.lock()
                     scannedCount += 1.0
                     let progress = scannedCount / totalCount
@@ -147,19 +142,22 @@ public class SubnetScannerService {
                 semaphore.wait() // Safely waits on background worker thread
                 
                 self.scanQueue.async { [weak self] in
-                    guard let self = self, !self.isCancelled else {
+                    guard let self = self, !scan.isCancelled else {
                         semaphore.signal()
                         group.leave()
                         return
                     }
                     
-                    self.probeHost(ip: ip) { device in
-                        if let dev = device {
+                    self.probeHost(ip: ip, timeout: timeout) { device in
+                        if var dev = device {
+                            dev.isGateway = ip == interface.gatewayIP
                             lock.lock()
+                            discoveredDevices.removeAll { $0.ipAddress == dev.ipAddress }
                             discoveredDevices.append(dev)
                             lock.unlock()
+                            let found = dev
                             DispatchQueue.main.async {
-                                onDeviceFound(dev)
+                                if !scan.isCancelled { onDeviceFound(found) }
                             }
                         }
                         
@@ -177,6 +175,7 @@ public class SubnetScannerService {
             }
             
             group.notify(queue: .main) {
+                guard !scan.isCancelled else { return }
                 onProgress(1.0)
                 onCompletion(discoveredDevices)
             }
@@ -184,10 +183,12 @@ public class SubnetScannerService {
     }
     
     public func cancelScan() {
-        isCancelled = true
+        scanLock.lock()
+        currentScan?.cancel()
+        scanLock.unlock()
     }
     
-    private func probeHost(ip: String, completion: @escaping (NetworkDevice?) -> Void) {
+    private func probeHost(ip: String, timeout: TimeInterval, completion: @escaping (NetworkDevice?) -> Void) {
         let startTime = CFAbsoluteTimeGetCurrent()
         
         let fd = socket(AF_INET, SOCK_STREAM, 0)
@@ -228,7 +229,7 @@ public class SubnetScannerService {
             let err = errno
             if err == EINPROGRESS || err == EWOULDBLOCK {
                 var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-                let pollRes = poll(&pfd, 1, 100) // 100ms quick probe
+                let pollRes = poll(&pfd, 1, Int32(timeout * 1000))
                 if pollRes > 0 {
                     var soError: Int32 = 0
                     var len = socklen_t(MemoryLayout<Int32>.size)
@@ -277,10 +278,6 @@ public class SubnetScannerService {
             vendor: vendor,
             deviceType: deviceType,
             isOnline: true,
-            uploadSpeedKbps: Double.random(in: 0.8...35.0),
-            downloadSpeedKbps: Double.random(in: 2.0...120.0),
-            totalBytesSent: UInt64.random(in: 50_000...5_000_000),
-            totalBytesReceived: UInt64.random(in: 100_000...20_000_000),
             latencyMs: round(latency * 10) / 10,
             openPorts: openPorts,
             services: services

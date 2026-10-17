@@ -29,15 +29,31 @@ public class PingDiagnosticService: ObservableObject {
     private var pingTimer: Timer?
     private var sequenceNumber = 0
     private var targetHost: String = ""
+    private var sessionID = UUID()
+    private var connections: [Int: NWConnection] = [:]
     
     public init() {}
+
+    deinit {
+        pingTimer?.invalidate()
+        for connection in connections.values {
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+        }
+    }
     
     public func startPinging(host: String) {
         stop()
-        targetHost = host
+        targetHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !targetHost.isEmpty else { return }
         sequenceNumber = 0
         history.removeAll()
+        minRtt = 0
+        avgRtt = 0
+        maxRtt = 0
+        packetLossPercent = 0
         isRunning = true
+        sendSingleProbe()
         
         pingTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
             self?.sendSingleProbe()
@@ -45,60 +61,69 @@ public class PingDiagnosticService: ObservableObject {
     }
     
     public func stop() {
+        sessionID = UUID()
         isRunning = false
         pingTimer?.invalidate()
         pingTimer = nil
+        for connection in connections.values {
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+        }
+        connections.removeAll()
     }
     
     private func sendSingleProbe() {
         sequenceNumber += 1
         let seq = sequenceNumber
+        let session = sessionID
         let startTime = CFAbsoluteTimeGetCurrent()
         
         let endpointHost = NWEndpoint.Host(targetHost)
         // Probe via lightweight TCP connect (SYN -> SYN/ACK)
         let connection = NWConnection(host: endpointHost, port: 80, using: .tcp)
+        connections[seq] = connection
         var finished = false
-        
-        let timeoutWork = DispatchWorkItem { [weak self] in
-            if !finished {
-                finished = true
-                connection.cancel()
-                self?.recordResult(seq: seq, rtt: 0, success: false)
-            }
+
+        // Both the timeout and connection events run on main, so completion is one-shot.
+        let finish: (Bool) -> Void = { [weak self] success in
+            guard !finished else { return }
+            finished = true
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+            guard let self = self, self.isRunning, self.sessionID == session else { return }
+            self.connections.removeValue(forKey: seq)
+            let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+            self.recordResult(seq: seq, rtt: success ? elapsed : 0, success: success, session: session)
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1.0, execute: timeoutWork)
         
-        connection.stateUpdateHandler = { [weak self] state in
+        let timeoutWork = DispatchWorkItem { finish(false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: timeoutWork)
+
+        connection.stateUpdateHandler = { state in
             switch state {
-            case .ready, .waiting:
-                if !finished {
-                    finished = true
+            case .ready:
+                timeoutWork.cancel()
+                finish(true)
+            case .waiting(let error), .failed(let error):
+                // Only an explicit TCP refusal proves that the host responded.
+                if case .posix(.ECONNREFUSED) = error {
                     timeoutWork.cancel()
-                    connection.cancel()
-                    let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                    self?.recordResult(seq: seq, rtt: elapsed, success: true)
-                }
-            case .failed:
-                if !finished {
-                    finished = true
+                    finish(true)
+                } else if case .failed = state {
                     timeoutWork.cancel()
-                    connection.cancel()
-                    let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                    // Host responded with RST/reject, which still calculates RTT!
-                    self?.recordResult(seq: seq, rtt: elapsed, success: true)
+                    finish(false)
                 }
             default:
                 break
             }
         }
         
-        connection.start(queue: .global())
+        connection.start(queue: .main)
     }
     
-    private func recordResult(seq: Int, rtt: Double, success: Bool) {
+    private func recordResult(seq: Int, rtt: Double, success: Bool, session: UUID) {
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self = self, self.isRunning, self.sessionID == session else { return }
             let item = PingResult(seq: seq, rttMs: round(rtt * 10) / 10, success: success, timestamp: Date())
             self.history.append(item)
             if self.history.count > 50 { self.history.removeFirst() }
@@ -107,7 +132,11 @@ public class PingDiagnosticService: ObservableObject {
             let failed = self.history.filter { !$0.success }
             self.packetLossPercent = Double(failed.count) / Double(self.history.count) * 100.0
             
-            if !successful.isEmpty {
+            if successful.isEmpty {
+                self.minRtt = 0
+                self.maxRtt = 0
+                self.avgRtt = 0
+            } else {
                 let rtts = successful.map { $0.rttMs }
                 self.minRtt = rtts.min() ?? 0.0
                 self.maxRtt = rtts.max() ?? 0.0

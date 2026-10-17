@@ -32,13 +32,11 @@ public class DashboardViewModel: ObservableObject {
         
         TrafficMonitorService.shared.$currentUploadKbps
             .receive(on: DispatchQueue.main)
-            .assign(to: \.uploadSpeedKbps, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$uploadSpeedKbps)
             
         TrafficMonitorService.shared.$currentDownloadKbps
             .receive(on: DispatchQueue.main)
-            .assign(to: \.downloadSpeedKbps, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$downloadSpeedKbps)
     }
     
     public func refreshInterface() {

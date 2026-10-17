@@ -42,27 +42,39 @@ public class WakeOnLANService {
         }
         
         let host = NWEndpoint.Host(broadcastIP)
-        guard let endpointPort = NWEndpoint.Port(rawValue: port) else {
+        guard port > 0, let endpointPort = NWEndpoint.Port(rawValue: port) else {
             completion(false, "Invalid UDP Port")
             return
         }
         
         let connection = NWConnection(host: host, port: endpointPort, using: .udp)
+        let queue = DispatchQueue(label: "com.netscan.wol")
+        var finished = false
+        let finish: (Bool, String) -> Void = { success, message in
+            guard !finished else { return }
+            finished = true
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+            DispatchQueue.main.async { completion(success, message) }
+        }
+        let timeoutWork = DispatchWorkItem { finish(false, "Timed out sending Wake-on-LAN packet") }
+        queue.asyncAfter(deadline: .now() + 2, execute: timeoutWork)
         connection.stateUpdateHandler = { state in
+            guard !finished else { return }
             if case .ready = state {
                 connection.send(content: Data(magicPacket), completion: .contentProcessed { error in
-                    connection.cancel()
+                    timeoutWork.cancel()
                     if let err = error {
-                        completion(false, "Failed to send packet: \(err.localizedDescription)")
+                        finish(false, "Failed to send packet: \(err.localizedDescription)")
                     } else {
-                        completion(true, "Magic packet successfully sent to \(macAddress)")
+                        finish(true, "Magic packet successfully sent to \(macAddress)")
                     }
                 })
             } else if case .failed(let err) = state {
-                connection.cancel()
-                completion(false, "Connection error: \(err.localizedDescription)")
+                timeoutWork.cancel()
+                finish(false, "Connection error: \(err.localizedDescription)")
             }
         }
-        connection.start(queue: .global())
+        connection.start(queue: queue)
     }
 }

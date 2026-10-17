@@ -615,7 +615,6 @@ public struct OUIVendorDatabase {
         "001C23": ("Dell Inc.", .computer),
         "001D09": ("Dell Inc.", .computer),
         "001E4F": ("Dell Inc.", .computer),
-        "001E67": ("Dell Inc.", .computer),
         "002170": ("Dell Inc.", .computer),
         "00219B": ("Dell Inc.", .computer),
         "002219": ("Dell Inc.", .computer),
@@ -693,7 +692,7 @@ public struct OUIVendorDatabase {
         "00113B": ("Motorola Mobility", .phone),
         "0012EE": ("Motorola Mobility", .phone),
         "001404": ("Motorola Mobility", .phone),
-        "001558": ("Lenovo", .computer),
+        "001558": ("Foxconn", .unknown),
         "0016B4": ("Motorola Mobility", .phone),
         "0017EE": ("Motorola Mobility", .phone),
         "0019C4": ("Lenovo", .computer),
@@ -880,7 +879,6 @@ public struct OUIVendorDatabase {
         // =========================================================================
         "001132": ("Synology Inc. (DiskStation)", .computer),
         "00089B": ("QNAP Systems", .computer),
-        "001558": ("QNAP Systems (TurboNAS)", .computer),
         "002165": ("Synology Inc.", .computer),
         "245EBE": ("QNAP Systems", .computer),
         
@@ -1161,48 +1159,49 @@ public struct OUIVendorDatabase {
     
     // MARK: - LAN Network Diagnostics & Probing
     
-    /// Non-blocking reverse DNS lookup with bounded timeout (default 1.2s)
+    /// Bounds the caller's wait; a system DNS lookup may finish later in the background.
     public static func resolveReverseDNS(ip: String, timeout: TimeInterval = 1.2) async -> String? {
-        await withTaskGroup(of: String?.self) { group in
-            group.addTask {
-                await withCheckedContinuation { continuation in
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        var addr = sockaddr_in()
-                        addr.sin_family = sa_family_t(AF_INET)
-                        guard inet_pton(AF_INET, ip, &addr.sin_addr) == 1 else {
-                            continuation.resume(returning: nil)
-                            return
-                        }
-                        
-                        var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                        let result = withUnsafePointer(to: &addr) {
-                            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                                getnameinfo($0, socklen_t(MemoryLayout<sockaddr_in>.size),
-                                            &host, socklen_t(host.count),
-                                            nil, 0, NI_NAMEREQD)
-                            }
-                        }
-                        
-                        if result == 0 {
-                            let name = String(cString: host).trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !name.isEmpty && name != ip {
-                                continuation.resume(returning: name)
-                                return
-                            }
-                        }
-                        continuation.resume(returning: nil)
-                    }
+        await resolveReverseDNS(timeout: timeout) {
+            var addr = sockaddr_in()
+            #if canImport(Darwin)
+            addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            #endif
+            addr.sin_family = sa_family_t(AF_INET)
+            guard inet_pton(AF_INET, ip, &addr.sin_addr) == 1 else { return nil }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            let result = withUnsafePointer(to: &addr) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    getnameinfo($0, socklen_t(MemoryLayout<sockaddr_in>.size),
+                                &host, socklen_t(host.count), nil, 0, NI_NAMEREQD)
                 }
             }
-            
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                return nil
+            guard result == 0 else { return nil }
+            let name = String(cString: host).trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty || name == ip ? nil : name
+        }
+    }
+
+    static func resolveReverseDNS(timeout: TimeInterval, lookup: @escaping () -> String?) async -> String? {
+        guard timeout.isFinite, timeout >= 0 else { return nil }
+        return await withCheckedContinuation { continuation in
+            let completionLock = NSLock()
+            var completed = false
+            let finish: (String?) -> Void = { value in
+                completionLock.lock()
+                guard !completed else {
+                    completionLock.unlock()
+                    return
+                }
+                completed = true
+                completionLock.unlock()
+                continuation.resume(returning: value)
             }
-            
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
+            DispatchQueue.global().asyncAfter(deadline: .now() + min(timeout, 60)) {
+                finish(nil)
+            }
+            DispatchQueue.global(qos: .userInitiated).async {
+                finish(lookup())
+            }
         }
     }
     
@@ -1217,12 +1216,13 @@ public struct OUIVendorDatabase {
         config.timeoutIntervalForRequest = 1.5
         config.timeoutIntervalForResource = 1.5
         let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
         
         do {
             let (data, response) = try await session.data(for: request)
             if let httpRes = response as? HTTPURLResponse {
                 // 1. Inspect Server Header
-                if let server = httpRes.allHeaderFields["Server"] as? String {
+                if let server = httpRes.value(forHTTPHeaderField: "Server") {
                     let s = server.lowercased()
                     if s.contains("tp-link") || s.contains("archer") { return ("TP-Link Technologies", .router) }
                     if s.contains("netgear") { return ("NETGEAR", .router) }
@@ -1326,12 +1326,6 @@ public struct OUIVendorDatabase {
         
         // 4. IP-based Active Discovery (Reverse DNS PTR, HTTP Banner, Gateway Check)
         if let ip = ipAddress, !ip.isEmpty {
-            // 4a. Check if IP matches Default Gateway
-            let gatewayIP = NetworkInterfaceService.shared.getCurrentInterface().gatewayIP
-            if !gatewayIP.isEmpty && ip == gatewayIP {
-                return ("Local Network Gateway", .router, nil)
-            }
-            
             // 4b. Reverse DNS PTR Query
             if hostname.isEmpty || hostname == ip {
                 if let revHost = await resolveReverseDNS(ip: ip) {

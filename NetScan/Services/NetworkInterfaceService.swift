@@ -24,6 +24,7 @@ public class NetworkInterfaceService: ObservableObject {
     public static let shared = NetworkInterfaceService()
     
     @Published public private(set) var currentInterface: NetworkInterfaceInfo
+    @Published public private(set) var hasResolvedPath = false
     
     private let pathMonitor: NWPathMonitor
     private let monitorQueue = DispatchQueue(label: "com.netscan.pathmonitor")
@@ -42,9 +43,10 @@ public class NetworkInterfaceService: ObservableObject {
     private func startMonitoring() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             guard let self = self else { return }
-            self.lastKnownPath = path
             DispatchQueue.main.async {
+                self.lastKnownPath = path
                 self.updateInterface(path: path)
+                self.hasResolvedPath = true
             }
         }
         pathMonitor.start(queue: monitorQueue)
@@ -73,6 +75,11 @@ public class NetworkInterfaceService: ObservableObject {
     }
     
     public static func detectCurrentInterface(path: NWPath? = nil) -> NetworkInterfaceInfo {
+        let usesWiFi = path?.usesInterfaceType(.wifi) ?? false
+        let usesEthernet = path?.usesInterfaceType(.wiredEthernet) ?? false
+        let lanType: NWInterface.InterfaceType = usesEthernet ? .wiredEthernet : .wifi
+        let lanName = path?.availableInterfaces.first(where: { $0.type == lanType })?.name
+            ?? (path == nil ? "en0" : "")
         var wifiIP: String?
         var wifiNetmask: String?
         var wifiBroadcast: String?
@@ -86,7 +93,11 @@ public class NetworkInterfaceService: ObservableObject {
             var ptr = ifaddr
             while ptr != nil {
                 guard let interface = ptr?.pointee else { break }
-                let addrFamily = interface.ifa_addr.pointee.sa_family
+                guard let address = interface.ifa_addr else {
+                    ptr = interface.ifa_next
+                    continue
+                }
+                let addrFamily = address.pointee.sa_family
                 let name = String(cString: interface.ifa_name)
                 
                 if addrFamily == UInt8(AF_INET) {
@@ -97,7 +108,7 @@ public class NetworkInterfaceService: ObservableObject {
                     let ipStr = String(cString: hostname)
                     
                     if ipStr != "127.0.0.1" && !ipStr.hasPrefix("127.") {
-                        if name.hasPrefix("en") {
+                        if name == lanName && wifiIP == nil {
                             wifiIP = ipStr
                             wifiIfName = name
                             
@@ -130,15 +141,14 @@ public class NetworkInterfaceService: ObservableObject {
         }
         
         let pathStatus = path?.status
-        let usesWiFi = path?.usesInterfaceType(.wifi) ?? (wifiIP != nil)
+        let hasWiFi = path == nil ? wifiIP != nil : usesWiFi && !usesEthernet
         let usesCellular = path?.usesInterfaceType(.cellular) ?? (cellularIP != nil && wifiIP == nil)
-        let usesEthernet = path?.usesInterfaceType(.wiredEthernet) ?? false
         
         // 1. Wi-Fi / Local Area Network
-        if usesWiFi, let ip = wifiIP {
+        if hasWiFi, let ip = wifiIP {
             let mask = wifiNetmask ?? "255.255.255.0"
             let cidr = calculateCIDR(netmask: mask)
-            let gateway = inferGateway(from: ip)
+            let gateway = configuredGateway(path: path, ip: ip, mask: mask)
             let bcast = wifiBroadcast ?? inferBroadcast(ip: ip, mask: mask)
             let ssid = fetchSSID() ?? "Local Wi-Fi Network"
             
@@ -152,7 +162,7 @@ public class NetworkInterfaceService: ObservableObject {
                 ssid: ssid,
                 bssid: "02:00:00:00:00:00",
                 isConnected: true,
-                interfaceType: "Wi-Fi (802.11ax)",
+                interfaceType: "Wi-Fi",
                 isLAN: true
             )
         }
@@ -161,7 +171,7 @@ public class NetworkInterfaceService: ObservableObject {
         if usesEthernet, let ip = wifiIP {
             let mask = wifiNetmask ?? "255.255.255.0"
             let cidr = calculateCIDR(netmask: mask)
-            let gateway = inferGateway(from: ip)
+            let gateway = configuredGateway(path: path, ip: ip, mask: mask)
             let bcast = wifiBroadcast ?? inferBroadcast(ip: ip, mask: mask)
             
             return NetworkInterfaceInfo(
@@ -218,29 +228,18 @@ public class NetworkInterfaceService: ObservableObject {
     }
     
     public static func calculateCIDR(netmask: String) -> Int {
-        let parts = netmask.split(separator: ".").compactMap { Int($0) }
-        guard parts.count == 4 else { return 24 }
-        var bits = 0
-        for part in parts {
-            var b = part
-            while b > 0 {
-                bits += (b & 1)
-                b >>= 1
-            }
-        }
-        return (bits <= 0 || bits > 32) ? 24 : bits
+        guard let mask = ipv4Value(netmask), (~mask & (~mask &+ 1)) == 0 else { return 24 }
+        return mask.nonzeroBitCount
     }
     
     public func inferGateway(from ip: String) -> String {
         return NetworkInterfaceService.inferGateway(from: ip)
     }
     
-    public static func inferGateway(from ip: String) -> String {
-        let parts = ip.split(separator: ".")
-        if parts.count == 4 {
-            return "\(parts[0]).\(parts[1]).\(parts[2]).1"
-        }
-        return ""
+    public static func inferGateway(from ip: String, mask: String = "255.255.255.0") -> String {
+        guard let address = ipv4Value(ip), let netmask = ipv4Value(mask),
+              (~netmask & (~netmask &+ 1)) == 0, netmask.nonzeroBitCount < 31 else { return "" }
+        return ipv4String((address & netmask) + 1)
     }
     
     public func inferBroadcast(ip: String, mask: String) -> String {
@@ -248,28 +247,52 @@ public class NetworkInterfaceService: ObservableObject {
     }
     
     public static func inferBroadcast(ip: String, mask: String) -> String {
-        let parts = ip.split(separator: ".")
-        if parts.count == 4 {
-            return "\(parts[0]).\(parts[1]).\(parts[2]).255"
-        }
-        return ""
+        guard let address = ipv4Value(ip), let netmask = ipv4Value(mask),
+              (~netmask & (~netmask &+ 1)) == 0 else { return "" }
+        return ipv4String((address & netmask) | ~netmask)
     }
     
     public func generateSubnetIPs(localIP: String, cidr: Int) -> [String] {
-        let parts = localIP.split(separator: ".").compactMap { Int($0) }
-        guard parts.count == 4 else { return [] }
-        
-        let p0 = parts[0]
-        let p1 = parts[1]
-        let p2 = parts[2]
-        
-        // Always generate a safe 1...254 host range for the /24 subnet:
-        var ips: [String] = []
-        ips.reserveCapacity(254)
-        for host in 1...254 {
-            ips.append("\(p0).\(p1).\(p2).\(host)")
+        guard let address = Self.ipv4Value(localIP), (0...32).contains(cidr) else { return [] }
+        let mask: UInt32 = cidr == 0 ? 0 : UInt32.max << (32 - cidr)
+        let network = address & mask
+        let broadcast = network | ~mask
+        let first = cidr >= 31 ? network : network + 1
+        let last = cidr >= 31 ? broadcast : broadcast - 1
+        // Bound very large networks to a 4096-address window containing this device.
+        let count = UInt64(last) - UInt64(first) + 1
+        let start = count > 4096 ? max(first, min(address & 0xFFFFF000, last - 4095)) : first
+        let end = UInt32(min(UInt64(last), UInt64(start) + 4095))
+        return (start...end).map(Self.ipv4String)
+    }
+
+    private static func ipv4Value(_ text: String) -> UInt32? {
+        let parts = text.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return nil }
+        var value: UInt32 = 0
+        for part in parts {
+            guard !part.isEmpty, part.allSatisfy({ $0.isASCII && $0.isNumber }),
+                  let octet = UInt8(part) else { return nil }
+            value = (value << 8) | UInt32(octet)
         }
-        return ips
+        return value
+    }
+
+    private static func ipv4String(_ value: UInt32) -> String {
+        "\((value >> 24) & 255).\((value >> 16) & 255).\((value >> 8) & 255).\(value & 255)"
+    }
+
+    private static func configuredGateway(path: NWPath?, ip: String, mask: String) -> String {
+        guard let address = ipv4Value(ip), let netmask = ipv4Value(mask) else { return "" }
+        for endpoint in path?.gateways ?? [] {
+            if case .hostPort(let host, _) = endpoint, case .ipv4(let gateway) = host {
+                let text = String(describing: gateway)
+                if let value = ipv4Value(text), value & netmask == address & netmask {
+                    return text
+                }
+            }
+        }
+        return ""
     }
     
     private static func fetchSSID() -> String? {

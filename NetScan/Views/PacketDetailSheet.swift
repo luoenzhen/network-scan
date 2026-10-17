@@ -19,6 +19,7 @@ public struct PacketDetailSheet: View {
         List {
             // General Information
             Section(header: Text("Packet Overview")) {
+                infoRow(label: "Data Source", value: packet.isSample ? "Generated sample" : "Provided packet")
                 infoRow(label: "Timestamp", value: packet.formattedTime)
                 infoRow(label: "Protocol", value: packet.protocolType.rawValue)
                 infoRow(label: "Direction", value: packet.direction.rawValue)

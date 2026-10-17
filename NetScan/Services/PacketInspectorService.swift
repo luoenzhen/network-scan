@@ -189,7 +189,13 @@ public class PacketInspectorService: ObservableObject {
             )
         ]
         
-        let randomPacket = samplePool.randomElement()!
-        addPacket(randomPacket)
+        guard let sample = samplePool.randomElement() else { return }
+        addPacket(NetworkPacket(
+            protocolType: sample.protocolType, direction: sample.direction,
+            sourceIP: sample.sourceIP, sourcePort: sample.sourcePort,
+            destinationIP: sample.destinationIP, destinationPort: sample.destinationPort,
+            packetLength: sample.packetLength, summary: sample.summary,
+            payloadHex: sample.payloadHex, payloadAscii: sample.payloadAscii, isSample: true
+        ))
     }
 }

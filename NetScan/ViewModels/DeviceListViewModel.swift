@@ -32,6 +32,13 @@ public class DeviceListViewModel: ObservableObject {
     private var trafficTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var lastNetworkId: String = ""
+    private var scanID = UUID()
+    private var enrichmentID = UUID()
+    private(set) var didAutoScan = false
+
+    deinit {
+        trafficTimer?.invalidate()
+    }
     
     public init() {
         OUIVendorDatabase.loadDatabaseIfNeeded()
@@ -46,18 +53,23 @@ public class DeviceListViewModel: ObservableObject {
         }
         
         // Listen to live network changes from NetworkInterfaceService
-        NetworkInterfaceService.shared.$currentInterface
+        Publishers.CombineLatest(NetworkInterfaceService.shared.$currentInterface,
+                                 NetworkInterfaceService.shared.$hasResolvedPath)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] newInterface in
-                self?.handleInterfaceChange(newInterface)
+            .sink { [weak self] newInterface, pathResolved in
+                self?.handleInterfaceChange(newInterface, pathResolved: pathResolved)
             }
             .store(in: &cancellables)
     }
     
-    private func handleInterfaceChange(_ newInterface: NetworkInterfaceInfo) {
+    func handleInterfaceChange(_ newInterface: NetworkInterfaceInfo, pathResolved: Bool) {
         let currentNetId = newInterface.networkIdentifier
         self.isLANConnected = newInterface.isLAN
         self.currentSSID = newInterface.ssid
+        if lastNetworkId != currentNetId {
+            enrichmentID = UUID()
+            selectedFilterType = nil
+        }
         
         if !newInterface.isLAN {
             // Switched to Cellular (4G/5G) or Disconnected
@@ -89,6 +101,12 @@ public class DeviceListViewModel: ObservableObject {
         }
         
         lastNetworkId = currentNetId
+        if pathResolved && newInterface.isLAN && !didAutoScan {
+            didAutoScan = true
+            if UserDefaults.standard.object(forKey: "autoRefreshOnLaunch") as? Bool ?? true {
+                startScan()
+            }
+        }
     }
     
     public var filteredAndSortedDevices: [NetworkDevice] {
@@ -136,6 +154,10 @@ public class DeviceListViewModel: ObservableObject {
         
         isScanning = true
         scanProgress = 0.0
+        scanID = UUID()
+        enrichmentID = UUID()
+        let run = scanID
+        selectedFilterType = nil
         
         // Clear previous scan results before starting fresh scan
         devices.removeAll()
@@ -147,10 +169,11 @@ public class DeviceListViewModel: ObservableObject {
         SubnetScannerService.shared.scanSubnet(
             interface: interface,
             onProgress: { [weak self] progress in
+                guard self?.scanID == run else { return }
                 self?.scanProgress = progress
             },
             onDeviceFound: { [weak self] newDevice in
-                guard let self = self else { return }
+                guard let self = self, self.scanID == run else { return }
                 if let index = self.devices.firstIndex(where: { $0.ipAddress == newDevice.ipAddress }) {
                     var updated = newDevice
                     updated.id = self.devices[index].id
@@ -160,7 +183,7 @@ public class DeviceListViewModel: ObservableObject {
                 }
             },
             onCompletion: { [weak self] _ in
-                guard let self = self else { return }
+                guard let self = self, self.scanID == run else { return }
                 self.isScanning = false
                 self.scanProgress = 1.0
                 self.lastScanTimestamp = Date()
@@ -170,47 +193,51 @@ public class DeviceListViewModel: ObservableObject {
     }
     
     public func updateDevice(_ updatedDevice: NetworkDevice) {
-        if let index = devices.firstIndex(where: { $0.id == updatedDevice.id || $0.ipAddress == updatedDevice.ipAddress }) {
-            devices[index] = updatedDevice
+        if let index = devices.firstIndex(where: { $0.id == updatedDevice.id }) {
+            // Merge identity/diagnostics without overwriting newer traffic samples.
+            devices[index].hostname = updatedDevice.hostname
+            devices[index].vendor = updatedDevice.vendor
+            devices[index].deviceType = updatedDevice.deviceType
+            devices[index].openPorts = updatedDevice.openPorts
+            devices[index].services = updatedDevice.services
         }
     }
     
     /// Queries the online Internet vendor database and LAN heuristics for any devices not recognized locally
     public func enrichVendorsOnline() {
+        enrichmentID = UUID()
+        let run = enrichmentID
         Task { @MainActor [weak self] in
             guard let self = self else { return }
-            var updatedDevices = self.devices
-            var hasChanges = false
+            let candidates = self.devices
             
-            for i in 0..<updatedDevices.count {
-                let dev = updatedDevices[i]
+            for dev in candidates {
+                guard self.enrichmentID == run else { return }
                 if dev.vendor == "Network Device" || dev.vendor == "Unknown" || dev.vendor.isEmpty {
                     let (vendor, type, resolvedHost) = await OUIVendorDatabase.identifyDeviceAsync(
                         ipAddress: dev.ipAddress,
                         macAddress: dev.macAddress,
                         hostname: dev.hostname
                     )
-                    if let host = resolvedHost, !host.isEmpty, host != updatedDevices[i].hostname {
-                        updatedDevices[i].hostname = host
-                        hasChanges = true
+                    guard self.enrichmentID == run,
+                          let index = self.devices.firstIndex(where: { $0.id == dev.id }) else { return }
+                    if let host = resolvedHost, !host.isEmpty {
+                        self.devices[index].hostname = host
                     }
                     if vendor != "Network Device" && vendor != "Unknown" && !vendor.isEmpty {
-                        updatedDevices[i].vendor = vendor
-                        if updatedDevices[i].deviceType == .unknown || updatedDevices[i].deviceType != type {
-                            updatedDevices[i].deviceType = type
+                        self.devices[index].vendor = vendor
+                        if type != .unknown {
+                            self.devices[index].deviceType = type
                         }
-                        hasChanges = true
                     }
                 }
             }
             
-            if hasChanges {
-                self.devices = updatedDevices
-            }
         }
     }
     
     public func stopScan() {
+        scanID = UUID()
         SubnetScannerService.shared.cancelScan()
         isScanning = false
         if isLANConnected && !devices.isEmpty {

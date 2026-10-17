@@ -2,7 +2,7 @@
   "name": "NetScan Community Repository",
   "identifier": "com.netscan.altstore.source",
   "subtitle": "Local Network Scanner and Packet Traffic Inspector for iOS",
-  "description": "Comprehensive network scanning, live device upload/download bandwidth monitoring (KB/s), protocol packet inspection, port auditing, and ping diagnostics for iPhone.",
+  "description": "Local IPv4 discovery, this device's interface traffic, sample packet inspection, TCP port audits, TCP response-time checks, and Wake-on-LAN. Configure template URLs before publishing.",
   "iconURL": "https://raw.githubusercontent.com/netscan/altstore/main/icons/netscan.png",
   "headerURL": "https://raw.githubusercontent.com/netscan/altstore/main/headers/banner.png",
   "website": "https://github.com/netscan/netscan-ios",
@@ -13,9 +13,9 @@
       "developerName": "NetScan Open Source",
       "version": "1.0.0",
       "versionDate": "2026-10-04",
-      "versionDescription": "Initial release featuring subnet scanning, live device upload/download KB/s meters, packet inspector, port scanner, ping diagnostics, and Wake-on-LAN.",
+      "versionDescription": "Local network discovery and diagnostic tools. Build and publish a matching IPA before using this template feed.",
       "downloadURL": "https://github.com/netscan/netscan-ios/releases/download/v1.0.0/NetScan.ipa",
-      "localizedDescription": "Scan all current devices using the same Wi-Fi network. Monitor live upload and download bandwidth in KB/second per device. Inspect live network packets with protocol decoding and hex payloads. Includes diagnostic ping latency metrics and port auditing.",
+      "localizedDescription": "Discover reachable local IPv4 devices. View this device's traffic counters and generated sample packets, scan TCP ports, check TCP response times, and send Wake-on-LAN packets. Remote device traffic is unavailable.",
       "iconURL": "https://raw.githubusercontent.com/netscan/altstore/main/icons/netscan.png",
       "tintColor": "0A84FF",
       "size": 15400000,
@@ -25,12 +25,7 @@
         "https://raw.githubusercontent.com/netscan/altstore/main/screenshots/packets.png"
       ],
       "appPermissions": {
-        "entitlements": [
-          {
-            "name": "com.apple.developer.networking.wifi-info",
-            "description": "Access Wi-Fi network SSID and gateway configuration"
-          }
-        ],
+        "entitlements": [],
         "privacy": [
           {
             "name": "NSLocalNetworkUsageDescription",

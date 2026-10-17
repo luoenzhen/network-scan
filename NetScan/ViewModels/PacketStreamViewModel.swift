@@ -17,13 +17,12 @@ public class PacketStreamViewModel: ObservableObject {
     @Published public var selectedPacket: NetworkPacket? = nil
     @Published public var packetsPerSecond: Double = 4.2
     
-    private var cancellables = Set<AnyCancellable>()
+
     
     public init() {
         PacketInspectorService.shared.$isCapturing
             .receive(on: DispatchQueue.main)
-            .assign(to: \.isCapturing, on: self)
-            .store(in: &cancellables)
+            .assign(to: &$isCapturing)
             
         // Combine captured packets with active filters
         Publishers.CombineLatest4(
@@ -48,8 +47,7 @@ public class PacketStreamViewModel: ObservableObject {
             }
         }
         .receive(on: DispatchQueue.main)
-        .assign(to: \.packets, on: self)
-        .store(in: &cancellables)
+        .assign(to: &$packets)
     }
     
     public func toggleCapture() {

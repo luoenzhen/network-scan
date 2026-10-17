@@ -54,7 +54,7 @@ public struct PingToolView: View {
             
             // Ping Log History
             List {
-                Section(header: Text("Ping Response Log (\(viewModel.pingResults.count))")) {
+                Section(header: Text("TCP Port 80 Probe Log (\(viewModel.pingResults.count))"), footer: Text("Measures TCP response time, including explicit connection refusals. This is not an ICMP ping test.")) {
                     ForEach(viewModel.pingResults.reversed()) { res in
                         HStack {
                             Circle()
@@ -69,7 +69,7 @@ public struct PingToolView: View {
                                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
                                     .foregroundColor(.green)
                             } else {
-                                Text("Request timed out")
+                                Text("No TCP response")
                                     .font(.system(size: 12, design: .monospaced))
                                     .foregroundColor(.red)
                             }

@@ -60,13 +60,14 @@ public struct NetworkInterfaceInfo: Codable, Equatable {
     
     public var estimatedHostCount: Int {
         guard isConnected && isLAN else { return 0 }
-        if cidrPrefix >= 32 { return 1 }
+        guard (0...32).contains(cidrPrefix) else { return 0 }
+        if cidrPrefix >= 31 { return 1 << (32 - cidrPrefix) }
         let hostBits = 32 - cidrPrefix
         let total = (1 << hostBits) - 2
         return max(total, 1)
     }
     
     public var networkIdentifier: String {
-        return "\(isLAN ? "LAN" : "WAN")_\(interfaceType)_\(ssid)_\(gatewayIP)_\(subnetMask)"
+        return "\(isLAN ? "LAN" : "WAN")_\(interfaceName)_\(interfaceType)_\(ssid)_\(ipAddress)_\(gatewayIP)_\(subnetMask)"
     }
 }
