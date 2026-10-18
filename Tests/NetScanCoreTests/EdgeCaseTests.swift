@@ -5,6 +5,14 @@ import Network
 @testable import NetScanCore
 
 final class EdgeCaseTests: XCTestCase {
+    func testVendorDefaultsPreserveSpecificDeviceCategories() {
+        for (mac, expected) in [("70:11:24:00:00:01", DeviceType.tv), ("00:17:F2:00:00:01", .computer),
+                                ("00:00:F0:00:00:01", .tv), ("70:9E:29:00:00:01", .gaming),
+                                ("50:C7:BF:00:00:01", .smartHome)] {
+            XCTAssertEqual(OUIVendorDatabase.identifyDevice(macAddress: mac, hostname: "192.168.1.20").deviceType, expected)
+        }
+        XCTAssertEqual(OUIVendorDatabase.identifyDevice(macAddress: "00:17:F2:00:00:01", hostname: "office-iphone").deviceType, .phone)
+    }
     func testWakePacketContentsAndMACValidation() throws {
         let packet = try XCTUnwrap(WakeOnLANService.magicPacket(macAddress: " 00:11:22:33:44:55 "))
         XCTAssertEqual(packet.count, 102)
@@ -30,7 +38,7 @@ final class EdgeCaseTests: XCTestCase {
         inet_pton(AF_INET, "127.0.0.1", &address.sin_addr)
         let bound = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
         XCTAssertEqual(bound, 0)

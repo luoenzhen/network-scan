@@ -1118,7 +1118,9 @@ public struct OUIVendorDatabase {
     public static func identifyDevice(macAddress: String?, hostname: String) -> (vendor: String, deviceType: DeviceType) {
         // 1. Direct MAC OUI lookup (built-in + bundle 52,000+ entries)
         if let mac = macAddress, let res = lookup(macAddress: mac) {
-            let type = inferDeviceType(hostname: hostname, vendor: res.vendor)
+            // A hostname can be more specific than a vendor; a generic vendor guess
+            // must not turn a known TV, computer, or console into a smartphone.
+            let type = inferDeviceType(hostname: hostname, vendor: "")
             return (res.vendor, type == .unknown ? res.defaultType : type)
         }
         
