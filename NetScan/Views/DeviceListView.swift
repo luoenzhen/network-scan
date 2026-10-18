@@ -9,6 +9,8 @@ import SwiftUI
 
 public struct DeviceListView: View {
     @ObservedObject var viewModel: DeviceListViewModel
+    @State private var showingHistory = false
+    @State private var showingReport = false
     
     public init(viewModel: DeviceListViewModel) {
         self.viewModel = viewModel
@@ -17,6 +19,9 @@ public struct DeviceListView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if let message = viewModel.storageMessage {
+                    Text(message).font(.caption).foregroundColor(.orange).padding()
+                }
                 if viewModel.isUpdatingIdentities {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -168,6 +173,14 @@ public struct DeviceListView: View {
                 }
             }
             .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button("Scan History") { showingHistory = true }
+                        Button("Export Report") { showingReport = true }
+                    } label: {
+                        Image(systemName: "ellipsis.circle").accessibilityLabel("History and reports")
+                    }.accessibilityIdentifier("inventory-options")
+                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     if viewModel.isLANConnected && !viewModel.devices.isEmpty {
                         Menu {
@@ -204,6 +217,8 @@ public struct DeviceListView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingHistory) { ScanHistoryView(model: viewModel) }
+            .sheet(isPresented: $showingReport) { NetworkReportView(devices: viewModel.devices, history: viewModel.history) }
         }
     }
     

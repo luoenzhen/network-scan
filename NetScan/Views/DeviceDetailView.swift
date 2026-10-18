@@ -13,6 +13,7 @@ public struct DeviceDetailView: View {
     @StateObject private var viewModel: DeviceDetailViewModel
     @State private var wolAlertMessage: String?
     @State private var showWolAlert = false
+    @State private var editingIdentity = false
     private let sourceDevice: NetworkDevice
     @Environment(\.scenePhase) private var scenePhase
     
@@ -147,10 +148,15 @@ public struct DeviceDetailView: View {
                 detailRow(label: "Device Category", value: viewModel.device.deviceType.rawValue)
                 detailRow(label: "Round-Trip Latency", value: String(format: "%.1f ms", viewModel.device.latencyMs))
             }
-            Section(header: Text("Security checks"), footer: Text("These are observable risk indicators, not proof of malicious behavior. Only TCP ports 21, 23, 139, 445, and 3389 are checked automatically; packet samples are not analyzed.")) {
+            SavedDeviceSection(device: viewModel.device)
+            Section(header: Text("Security checks"), footer: Text("These are observable risk indicators, not proof of malicious behavior. Only TCP ports 21, 23, 139, 445, and 3389 are checked automatically; packet samples are not analyzed. Unanswered probes are inconclusive.")) {
                 Text(viewModel.device.serviceCheckState.rawValue)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                if viewModel.device.serviceCheckState == .checked {
+                    Text("\(viewModel.device.assessedPorts.count) ports gave definite responses. Other probes may have been filtered or unanswered.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
                 ForEach(viewModel.device.securityFindings) { finding in
                     VStack(alignment: .leading, spacing: 4) {
                         Label(finding.title, systemImage: finding.requiresReview ? "exclamationmark.shield" : "info.circle")
@@ -159,6 +165,8 @@ public struct DeviceDetailView: View {
                         Text(finding.detail)
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        Text("Suggested action: \(finding.recommendedAction)")
+                            .font(.caption)
                     }
                 }
                 if viewModel.device.serviceCheckState == .checked && !viewModel.device.securityFindings.contains(where: \.requiresReview) {
@@ -167,6 +175,7 @@ public struct DeviceDetailView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            IdentityEvidenceSection(device: viewModel.device)
             
             // Open Port Discovery Section
             Section(header: HStack {
@@ -303,6 +312,14 @@ public struct DeviceDetailView: View {
         .accessibilityIdentifier("device-detail")
         .navigationTitle(viewModel.device.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Edit") { editingIdentity = true }.accessibilityIdentifier("edit-device")
+            }
+        }
+        .sheet(isPresented: $editingIdentity) {
+            DeviceInventoryEditor(device: viewModel.device) { viewModel.saveAnnotation($0) }
+        }
         .alert(isPresented: $showWolAlert) {
             Alert(
                 title: Text("Wake-on-LAN"),

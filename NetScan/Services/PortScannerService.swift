@@ -13,6 +13,8 @@ public class PortScannerService {
     
     private var currentScan: ScanCancellation?
     private let scanLock = NSLock()
+    private var assessedPorts: [Int] = []
+    public var completedPorts: [Int] { scanLock.withLock { assessedPorts } }
     private let queue = DispatchQueue(label: "com.netscan.portscanner")
     
     public init() {}
@@ -29,6 +31,7 @@ public class PortScannerService {
         scanLock.lock()
         currentScan?.cancel()
         currentScan = scan
+        assessedPorts = []
         scanLock.unlock()
         // The producer can wait for slots without blocking the caller or callbacks.
         DispatchQueue.global(qos: .userInitiated).async {
@@ -39,6 +42,7 @@ public class PortScannerService {
                 ? [] : Array(Set(ports.filter { (1...65535).contains($0) })).sorted()
             let total = Double(validPorts.count)
             var scanned = 0.0
+            var assessed: [Int] = []
             let semaphore = DispatchSemaphore(value: 8)
             
             for port in validPorts {
@@ -53,8 +57,9 @@ public class PortScannerService {
                         return
                     }
                     
-                    self.checkPort(ip: target, port: port) { isOpen in
+                    self.checkPort(ip: target, port: port) { isOpen, determinate in
                         lock.lock()
+                        if determinate { assessed.append(port) }
                         scanned += 1.0
                         let progress = scanned / total
                         if isOpen {
@@ -77,6 +82,7 @@ public class PortScannerService {
 
             group.notify(queue: .main) {
                 guard !scan.isCancelled else { return }
+                self.scanLock.withLock { self.assessedPorts = assessed.sorted() }
                 onProgress(1.0)
                 onCompletion(results.sorted { $0.port < $1.port })
             }
@@ -89,11 +95,11 @@ public class PortScannerService {
         scanLock.unlock()
     }
     
-    private func checkPort(ip: String, port: Int, completion: @escaping (Bool) -> Void) {
+    private func checkPort(ip: String, port: Int, completion: @escaping (Bool, Bool) -> Void) {
         let host = NWEndpoint.Host(ip)
         guard let value = UInt16(exactly: port), value > 0,
               let p = NWEndpoint.Port(rawValue: value) else {
-            completion(false)
+            completion(false, false)
             return
         }
         
@@ -105,7 +111,7 @@ public class PortScannerService {
                 responded = true
                 connection.stateUpdateHandler = nil
                 connection.cancel()
-                completion(false)
+                completion(false, false)
             }
         }
         
@@ -119,14 +125,15 @@ public class PortScannerService {
                     timeoutWork.cancel()
                     connection.stateUpdateHandler = nil
                     connection.cancel()
-                    completion(true)
+                    completion(true, true)
                 }
-            case .failed, .cancelled:
+            case .failed(let error):
                 if !responded {
                     responded = true
                     timeoutWork.cancel()
                     connection.stateUpdateHandler = nil
-                    completion(false)
+                    connection.cancel()
+                    completion(false, error == .posix(.ECONNREFUSED))
                 }
             default:
                 break

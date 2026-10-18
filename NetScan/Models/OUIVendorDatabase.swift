@@ -1211,12 +1211,22 @@ public struct OUIVendorDatabase {
     }
 
     static func probeHTTPIdentity(ip: String, configuration: URLSessionConfiguration) async -> (vendor: String, deviceType: DeviceType)? {
-        // HEAD completes without a body, including on servers whose GET response stalls.
-        if let identity = await probeHTTPIdentity(ip: ip, method: "HEAD", configuration: configuration) { return identity }
-        return await probeHTTPIdentity(ip: ip, method: "GET", configuration: configuration)
+        guard let result = await probeHTTPIdentityWithEvidence(ip: ip, configuration: configuration) else { return nil }
+        return result.vendor == "Network Device" ? nil : (result.vendor, result.deviceType)
     }
 
-    private static func probeHTTPIdentity(ip: String, method: String, configuration: URLSessionConfiguration) async -> (vendor: String, deviceType: DeviceType)? {
+    private static func probeHTTPIdentityWithEvidence(ip: String, configuration: URLSessionConfiguration) async -> DeviceIdentityResult? {
+        // HEAD completes without a body, including on servers whose GET response stalls.
+        let headers = await probeHTTPIdentity(ip: ip, method: "HEAD", configuration: configuration)
+        if let headers = headers, headers.vendor != "Network Device" { return headers }
+        if var page = await probeHTTPIdentity(ip: ip, method: "GET", configuration: configuration) {
+            for evidence in headers?.evidence ?? [] where !page.evidence.contains(where: { $0.id == evidence.id }) { page.evidence.append(evidence) }
+            return page
+        }
+        return headers
+    }
+
+    private static func probeHTTPIdentity(ip: String, method: String, configuration: URLSessionConfiguration) async -> DeviceIdentityResult? {
         guard !Task.isCancelled, let url = URL(string: "http://\(ip)/") else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -1294,13 +1304,13 @@ public struct OUIVendorDatabase {
     private final class HTTPIdentityProbe: NSObject, URLSessionDataDelegate {
         private let lock = NSLock()
         private var finished = false
-        private var continuation: CheckedContinuation<(vendor: String, deviceType: DeviceType)?, Never>?
+        private var continuation: CheckedContinuation<DeviceIdentityResult?, Never>?
         private var session: URLSession?
         private var response: HTTPURLResponse?
         private var prefix = Data()
 
         func start(request: URLRequest, configuration: URLSessionConfiguration,
-                   continuation: CheckedContinuation<(vendor: String, deviceType: DeviceType)?, Never>) {
+                   continuation: CheckedContinuation<DeviceIdentityResult?, Never>) {
             lock.lock()
             guard !finished else {
                 lock.unlock()
@@ -1317,7 +1327,7 @@ public struct OUIVendorDatabase {
             task.resume()
         }
 
-        func finish(_ result: (vendor: String, deviceType: DeviceType)?) {
+        func finish(_ result: DeviceIdentityResult?) {
             lock.lock()
             guard !finished else { lock.unlock(); return }
             finished = true
@@ -1330,6 +1340,19 @@ public struct OUIVendorDatabase {
             completion?.resume(returning: result)
         }
 
+        private func identified(_ match: (vendor: String, deviceType: DeviceType)?) -> DeviceIdentityResult? {
+            guard response != nil else { return nil }
+            var evidence: [IdentityEvidence] = []
+            if let server = response?.value(forHTTPHeaderField: "Server") {
+                evidence.append(IdentityEvidence(source: "HTTP Server header (self-reported)", observation: server))
+            }
+            if response?.value(forHTTPHeaderField: "WWW-Authenticate")?.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("basic ") == true {
+                evidence.append(IdentityEvidence(source: "HTTP authentication", observation: "HTTP Basic authentication offered over unencrypted HTTP."))
+            }
+            if let match = match { evidence.append(IdentityEvidence(source: "HTTP classification (inferred)", observation: "Banner or page-title pattern suggests \(match.vendor).")) }
+            return DeviceIdentityResult(vendor: match?.vendor ?? "Network Device", deviceType: match?.deviceType ?? .unknown, resolvedHostname: nil, evidence: evidence)
+        }
+
         func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                         completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
             guard let http = response as? HTTPURLResponse else {
@@ -1340,7 +1363,7 @@ public struct OUIVendorDatabase {
             self.response = http
             if let match = OUIVendorDatabase.parseHTTPIdentity(response: http, data: Data()) {
                 completionHandler(.cancel)
-                finish(match)
+                finish(identified(match))
             } else {
                 completionHandler(.allow)
             }
@@ -1350,12 +1373,12 @@ public struct OUIVendorDatabase {
             prefix.append(data.prefix(max(0, 2048 - prefix.count)))
             guard let response = response else { return }
             let match = OUIVendorDatabase.parseHTTPIdentity(response: response, data: prefix)
-            if match != nil || prefix.count == 2048 { finish(match) }
+            if match != nil || prefix.count == 2048 { finish(identified(match)) }
         }
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
             let match = error == nil ? response.flatMap { OUIVendorDatabase.parseHTTPIdentity(response: $0, data: prefix) } : nil
-            finish(match)
+            finish(identified(match))
         }
     }
     
@@ -1374,20 +1397,37 @@ public struct OUIVendorDatabase {
         ipAddress: String?, macAddress: String?, hostname: String,
         reverseDNS: (String) async -> String?
     ) async -> (vendor: String, deviceType: DeviceType, resolvedHostname: String?) {
-        guard !Task.isCancelled else { return ("Network Device", .unknown, nil) }
+        let result = await identifyDeviceWithEvidence(ipAddress: ipAddress, macAddress: macAddress, hostname: hostname, reverseDNS: reverseDNS)
+        return (result.vendor, result.deviceType, result.resolvedHostname)
+    }
+
+    public static func identifyDeviceWithEvidence(ipAddress: String?, macAddress: String?, hostname: String) async -> DeviceIdentityResult {
+        await identifyDeviceWithEvidence(ipAddress: ipAddress, macAddress: macAddress, hostname: hostname,
+                                         reverseDNS: { await resolveReverseDNS(ip: $0) })
+    }
+
+    static func identifyDeviceWithEvidence(ipAddress: String?, macAddress: String?, hostname: String,
+                                            reverseDNS: (String) async -> String?) async -> DeviceIdentityResult {
+        var evidence: [IdentityEvidence] = []
+        func result(_ vendor: String, _ type: DeviceType, _ host: String?) -> DeviceIdentityResult {
+            DeviceIdentityResult(vendor: vendor, deviceType: type, resolvedHostname: host, evidence: evidence)
+        }
+        guard !Task.isCancelled else { return result("Network Device", .unknown, nil) }
         var discoveredHostname: String? = nil
         if let ip = ipAddress, !ip.isEmpty,
            hostname.isEmpty || hostname == ip || hostname.lowercased() == "unknown" {
             discoveredHostname = await reverseDNS(ip)
+            if let host = discoveredHostname { evidence.append(IdentityEvidence(source: "Reverse DNS (self-reported name)", observation: host)) }
         }
-        guard !Task.isCancelled else { return ("Network Device", .unknown, nil) }
+        guard !Task.isCancelled else { return result("Network Device", .unknown, nil) }
         let hostname = discoveredHostname ?? hostname
         
         // 1. Fast local MAC lookup first
         if let mac = macAddress, !mac.isEmpty, !mac.contains("Unknown") && !mac.contains("Restricted") {
             let local = identifyDevice(macAddress: mac, hostname: hostname)
             if local.vendor != "Network Device" && local.vendor != "Unknown" && !local.vendor.isEmpty {
-                return (local.vendor, local.deviceType, discoveredHostname)
+                evidence.append(IdentityEvidence(source: "Local OUI allocation", observation: "MAC prefix allocated to \(local.vendor); this can identify an embedded module rather than the appliance."))
+                return result(local.vendor, local.deviceType, discoveredHostname)
             }
             
             // 2. Fallback: Search online MAC OUI database from the Internet
@@ -1398,32 +1438,37 @@ public struct OUIVendorDatabase {
             if clean.count >= 6 && clean.unicodeScalars.allSatisfy({ hexChars.contains($0) }) {
                 if let online = await lookupOnline(macAddress: mac) {
                     let type = inferDeviceType(hostname: hostname, vendor: online.vendor)
-                    return (online.vendor, type == .unknown ? online.defaultType : type, discoveredHostname)
+                    evidence.append(IdentityEvidence(source: "Online OUI allocation", observation: "MAC prefix allocated to \(online.vendor)."))
+                    return result(online.vendor, type == .unknown ? online.defaultType : type, discoveredHostname)
                 }
             }
         }
         
-        guard !Task.isCancelled else { return ("Network Device", .unknown, nil) }
+        guard !Task.isCancelled else { return result("Network Device", .unknown, nil) }
         // 3. Hostname-based detection if present and not just numeric IP
         if !hostname.isEmpty && hostname != ipAddress {
             let localByHost = identifyDevice(macAddress: nil, hostname: hostname)
             if localByHost.vendor != "Network Device" && localByHost.vendor != "Unknown" && !localByHost.vendor.isEmpty {
-                return (localByHost.vendor, localByHost.deviceType, discoveredHostname)
+                evidence.append(IdentityEvidence(source: "Hostname classification (inferred)", observation: "\(hostname) suggests \(localByHost.vendor)."))
+                return result(localByHost.vendor, localByHost.deviceType, discoveredHostname)
             }
         }
         
         // 4. IP-based Active Discovery (Reverse DNS PTR, HTTP Banner, Gateway Check)
         if let ip = ipAddress, !ip.isEmpty {
-            guard !Task.isCancelled else { return ("Network Device", .unknown, discoveredHostname) }
+            guard !Task.isCancelled else { return result("Network Device", .unknown, discoveredHostname) }
             // 4c. HTTP / Web Banner Probe
-            if let httpMatch = await probeHTTPIdentity(ip: ip) {
-                return (httpMatch.vendor, httpMatch.deviceType, discoveredHostname)
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForResource = 1.5
+            if let httpMatch = await probeHTTPIdentityWithEvidence(ip: ip, configuration: configuration) {
+                evidence += httpMatch.evidence
+                return result(httpMatch.vendor, httpMatch.deviceType, discoveredHostname)
             }
         }
         
         // 5. Final fallback
         let fallback = identifyDevice(macAddress: macAddress, hostname: discoveredHostname ?? hostname)
-        return (fallback.vendor, fallback.deviceType, discoveredHostname)
+        return result(fallback.vendor, fallback.deviceType, discoveredHostname)
     }
     
     public static func identifyDeviceAsync(macAddress: String?, hostname: String) async -> (vendor: String, deviceType: DeviceType) {

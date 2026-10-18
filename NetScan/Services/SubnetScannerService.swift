@@ -180,77 +180,54 @@ public class SubnetScannerService {
         scanLock.unlock()
     }
     
-    private func probeHost(ip: String, timeout: TimeInterval, completion: @escaping (NetworkDevice?) -> Void) {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else {
-            completion(nil)
-            return
+    // All ports share one host timeout, with at most three sockets per host.
+    func probeHost(ip: String, timeout: TimeInterval, ports: [UInt16] = [80, 443, 22],
+                   completion: @escaping (NetworkDevice?) -> Void) {
+        let start = CFAbsoluteTimeGetCurrent()
+        var descriptors: [pollfd] = []
+        var descriptorPorts: [UInt16] = []
+        var live = false
+        var openPort: Int?
+        let ports = Array(Set(ports.filter { $0 > 0 })).sorted().prefix(3)
+        defer { descriptors.forEach { close($0.fd) } }
+        for port in ports {
+            let fd = socket(AF_INET, SOCK_STREAM, 0)
+            guard fd >= 0 else { continue }
+            let flags = fcntl(fd, F_GETFL, 0)
+            guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0 else { close(fd); continue }
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_port = port.bigEndian
+            guard inet_pton(AF_INET, ip, &address.sin_addr) == 1 else { close(fd); continue }
+            let result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+            }
+            if result == 0 { live = true; openPort = Int(port) }
+            else if errno == ECONNREFUSED { live = true }
+            descriptors.append(pollfd(fd: fd, events: Int16(POLLOUT), revents: 0))
+            descriptorPorts.append(port)
         }
-        
-        // Set non-blocking mode
-        let flags = fcntl(fd, F_GETFL, 0)
-        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
-        
-        #if canImport(Darwin)
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
-        #endif
-        
-        var addr = sockaddr_in()
-        #if canImport(Darwin)
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        #endif
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = in_port_t(80).bigEndian
-        inet_pton(AF_INET, ip, &addr.sin_addr)
-        
-        var genericAddr = sockaddr()
-        memcpy(&genericAddr, &addr, MemoryLayout<sockaddr_in>.size)
-        
-        let connectRes = connect(fd, &genericAddr, socklen_t(MemoryLayout<sockaddr_in>.size))
-        
-        var isAlive = false
-        var openPort: Int? = nil
-        
-        if connectRes == 0 {
-            isAlive = true
-            openPort = 80
-        } else {
-            let err = errno
-            if err == EINPROGRESS || err == EWOULDBLOCK {
-                var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-                let pollRes = poll(&pfd, 1, Int32(timeout * 1000))
-                if pollRes > 0 {
-                    var soError: Int32 = 0
-                    var len = socklen_t(MemoryLayout<Int32>.size)
-                    getsockopt(fd, SOL_SOCKET, SO_ERROR, &soError, &len)
-                    if soError == 0 {
-                        isAlive = true
-                        openPort = 80
-                    } else if soError == ECONNREFUSED {
-                        isAlive = true
-                        openPort = nil
+        if !live && !descriptors.isEmpty {
+            let count = descriptors.count
+            let ready = poll(&descriptors, nfds_t(count), Int32(max(0, min(timeout, 1.5)) * 1000))
+            if ready > 0 {
+                for (index, descriptor) in descriptors.enumerated() where descriptor.revents & Int16(POLLOUT | POLLERR | POLLHUP) != 0 {
+                    var error: Int32 = 0
+                    var length = socklen_t(MemoryLayout<Int32>.size)
+                    if getsockopt(descriptor.fd, SOL_SOCKET, SO_ERROR, &error, &length) == 0 {
+                        if error == 0 { live = true; openPort = Int(descriptorPorts[index]) }
+                        else if error == ECONNREFUSED { live = true }
                     }
                 }
-            } else if err == ECONNREFUSED {
-                isAlive = true
-                openPort = nil
             }
         }
-        
-        close(fd)
-        
-        if isAlive {
-            let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-            let device = self.buildDeviceRecord(ip: ip, latency: elapsed, openPort: openPort)
-            completion(device)
-        } else {
-            completion(nil)
-        }
+        guard live else { completion(nil); return }
+        var device = buildDeviceRecord(ip: ip, latency: (CFAbsoluteTimeGetCurrent() - start) * 1000, openPort: openPort)
+        device.evidence.append(IdentityEvidence(source: "TCP discovery", observation: openPort.map { "TCP \($0) accepted a connection." } ?? "A TCP connection was explicitly refused; host responded."))
+        completion(device)
     }
-    
+
     private func buildDeviceRecord(ip: String, latency: Double, openPort: Int?) -> NetworkDevice {
         let hostname = resolveHostname(for: ip) ?? ip
         let realMAC = resolveARPMACAddress(ip: ip)

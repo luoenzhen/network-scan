@@ -110,6 +110,7 @@ public class DeviceDetailViewModel: ObservableObject {
                     self.device.openPorts = all.map { $0.port }
                     self.device.services = all.map { $0.serviceName }
                     self.device.serviceCheckState = .checked
+                    self.device.assessedPorts = self.portScanner.completedPorts
                     self.onDeviceUpdated?(self.device, .ports)
                 }
             }
@@ -157,13 +158,17 @@ public class DeviceDetailViewModel: ObservableObject {
         let targetHost = device.hostname
         
         vendorTask = Task {
-            let (vendor, devType, resolvedHost) = await OUIVendorDatabase.identifyDeviceAsync(
+            let result = await OUIVendorDatabase.identifyDeviceWithEvidence(
                 ipAddress: targetIP,
                 macAddress: targetMAC,
                 hostname: targetHost
             )
             
             guard !Task.isCancelled else { return }
+            let (vendor, devType, resolvedHost) = (result.vendor, result.deviceType, result.resolvedHostname)
+            for evidence in result.evidence where !self.device.evidence.contains(where: { $0.id == evidence.id }) {
+                self.device.evidence.append(evidence)
+            }
             
             self.isSearchingOnlineVendor = false
             var updated = false
@@ -184,9 +189,15 @@ public class DeviceDetailViewModel: ObservableObject {
                 self.searchStatusMessage = "No manufacturer records found for this address."
             }
             
-            if updated {
+            if updated || !result.evidence.isEmpty {
                 self.onDeviceUpdated?(self.device, .identity)
             }
         }
+    }
+
+    public func saveAnnotation(_ annotation: DeviceAnnotation) {
+        device.annotation = annotation
+        device.savedMatch = .current
+        onDeviceUpdated?(device, .annotation)
     }
 }

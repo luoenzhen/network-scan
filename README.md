@@ -11,9 +11,9 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
 ## 📱 Features
 
 1. **Subnet Device Discovery & Identification**
-   - Probes local subnet addresses on TCP port 80; devices that silently filter this probe may be missed.
+   - Probes local subnet addresses on TCP ports 80, 443, and 22 in parallel within one host timeout. Explicit connection refusals also establish reachability; devices that filter all probes may still be missed.
    - Respects the subnet mask. Large networks are limited to a 4096-address window containing this device.
-   - Offers hostname and HTTP identity lookup, plus an embedded IEEE OUI database when a MAC is supplied. Bonjour browsing is available as a service but is not yet connected to device identity enrichment.
+   - Combines hostname and HTTP identity lookup, an embedded IEEE OUI database when a MAC is supplied, and bounded Bonjour service resolution. Advertisements are recorded as self-reported evidence, not as proof that a service is reachable.
    - Categorizes devices automatically (Smartphones, Computers, Routers, Smart Home/IoT, Printers, Gaming consoles, Smart TVs).
    - Automatically resolves unidentified devices after discovery, with one retry after 15 seconds. Hostnames remain visible when iOS hides the MAC address. Rescanning, changing networks, or entering the background cancels pending updates.
    - HTTP identification first requests headers with HEAD, then reads at most 2,048 bytes with GET if needed. Each request has a 1.5-second timeout; an unsuccessful two-stage probe can take up to roughly three seconds.
@@ -37,7 +37,16 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
    - **Multi-Threaded Port Scanner**: Audits open TCP ports (HTTP 80, HTTPS 443, SSH 22, DNS 53, SMB 445, RTSP 554, IPP 631, etc.) with service identification.
    - **Wake-on-LAN (WOL)**: Sends a UDP magic packet on the selected LAN interface. On iOS, broadcast delivery requires Local Network access and a signing profile with Apple's managed Multicast Networking entitlement; ordinary free AltStore signing does not provide it. Sending a packet does not confirm that a device woke up.
 
-5. **AltStore & Sideloading Ready**
+5. **Saved Device Labels, History, and Reports**
+   - Edit a device to save a name, location, notes, and your recognition of it. Labels remain separate from manufacturer estimates and do not suppress service risks.
+   - Stores a versioned inventory file locally in Application Support and the latest 20 completed discovery snapshots. Cancelled discovery does not become a completed scan; cancelled identity/service work leaves explicit incomplete coverage on a completed discovery.
+   - Matches supplied MAC addresses first, then unique hostnames, then addresses within a network profile. MAC conflicts create separate records. Hostname/address associations are clearly marked for verification and do not inherit recognition. An unavailable network name also makes the association tentative. iOS privacy limits mean networks with identical visible addressing can be indistinguishable; these associations are not proof of identity.
+   - History shows new observations, devices not seen, matching-device address changes, and port changes only where both scans received definite responses. Unanswered probes are inconclusive, not evidence that a service closed.
+   - Identification evidence shows source and observation time, distinguishes inferred classifications and self-reported names/headers, and warns that an OUI can identify a module rather than an appliance.
+   - Devices → History and reports provides scan history and a dated plain-text report with Share and Save File. Redaction defaults on and structurally omits aliases, notes, locations, IP/MAC addresses, hostnames, network identifiers, and raw evidence. Disabling it includes personal notes: review the preview before sharing.
+   - Suggested risk actions are advisory. No default-password attempts, automatic device blocking, router integration, or actual remote-traffic capture are performed.
+
+6. **AltStore & Sideloading Ready**
    - Pre-configured `Info.plist` with required iOS network privacy keys (`NSLocalNetworkUsageDescription` and `NSBonjourServices`).
    - Builds using Xcode (`build_ipa.sh`) and packages a compiled `.app` (`package_ipa.py`).
    - AltStore source template (`AltStore/altstore-source.json`).

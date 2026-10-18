@@ -61,6 +61,11 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
     public var isLocalDevice: Bool
     public var isGateway: Bool
     public var serviceCheckState: ServiceCheckState
+    public var annotation = DeviceAnnotation()
+    public var inventoryID: UUID?
+    public var savedMatch: SavedDeviceMatch = .none
+    public var evidence: [IdentityEvidence] = []
+    public var assessedPorts: [Int] = []
     
     public init(
         id: UUID = UUID(),
@@ -105,6 +110,7 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
     }
     
     public var displayName: String {
+        if !annotation.name.isEmpty { return annotation.name }
         if hasResolvedHostname {
             return hostname
         }
@@ -143,6 +149,9 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
 
     public var securityFindings: [DeviceSecurityFinding] {
         var findings: [DeviceSecurityFinding] = []
+        if evidence.contains(where: { $0.source == "HTTP authentication" }) {
+            findings.append(DeviceSecurityFinding(id: "basic-auth", title: "Unencrypted web login observed", detail: "The web service offered HTTP Basic authentication over HTTP. Credentials sent through this interface lack transport encryption.", requiresReview: true))
+        }
         if !isLocalDevice && !hasResolvedHostname && ["", "unknown", "network device", "generic device"].contains(vendor.lowercased()) {
             findings.append(DeviceSecurityFinding(id: "identity", title: "Identity unresolved", detail: "The device has not advertised a recognizable name or manufacturer. Missing MAC addresses are normal on iOS.", requiresReview: false))
         }
@@ -187,9 +196,46 @@ public enum ServiceCheckState: String, Codable {
     case checked = "Selected services checked"
 }
 
-public enum DeviceUpdateKind {
+public enum DeviceUpdateKind: Equatable {
     case identity
     case ports
+    case annotation
+}
+
+public struct DeviceAnnotation: Codable, Equatable {
+    public var name = ""
+    public var location = ""
+    public var notes = ""
+    public var recognized = false
+    public init() {}
+    public var isEmpty: Bool { name.isEmpty && location.isEmpty && notes.isEmpty && !recognized }
+}
+
+public enum SavedDeviceMatch: String, Codable {
+    case none = "No saved identity"
+    case current = "Labeled by you this scan"
+    case mac = "Saved label: MAC match"
+    case hostname = "Saved label: hostname match—verify device"
+    case address = "Saved address label—verify device"
+}
+
+public struct IdentityEvidence: Codable, Equatable, Identifiable {
+    public var source: String
+    public var observation: String
+    public var date: Date
+    public var id: String { source + ":" + observation }
+    public init(source: String, observation: String, date: Date = Date()) {
+        self.source = source
+        self.observation = String(observation.prefix(256))
+        self.date = date
+    }
+}
+
+public struct DeviceIdentityResult {
+    public var vendor: String
+    public var deviceType: DeviceType
+    public var resolvedHostname: String?
+    public var evidence: [IdentityEvidence]
 }
 
 public struct DeviceSecurityFinding: Identifiable, Equatable {
@@ -197,4 +243,14 @@ public struct DeviceSecurityFinding: Identifiable, Equatable {
     public let title: String
     public let detail: String
     public let requiresReview: Bool
+    public var recommendedAction: String {
+        switch id {
+        case "ftp": return "Confirm whether FTP is needed. Prefer SFTP or properly configured FTPS; otherwise disable the service."
+        case "telnet": return "Disable Telnet if the device supports it. Otherwise restrict access using your router or an isolated IoT network."
+        case "smb": return "Review sharing permissions, require authentication, and restrict access to intended devices."
+        case "rdp": return "Allow remote desktop only where needed; use strong authentication and avoid internet port forwarding."
+        case "basic-auth": return "Prefer HTTPS if supported. Use a unique device password and restrict who can reach this interface."
+        default: return "Compare the device with your router's client list and appliance labels before assigning it a name."
+        }
+    }
 }

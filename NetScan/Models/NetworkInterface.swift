@@ -70,4 +70,15 @@ public struct NetworkInterfaceInfo: Codable, Equatable {
     public var networkIdentifier: String {
         return "\(isLAN ? "LAN" : "WAN")_\(interfaceName)_\(interfaceType)_\(ssid)_\(ipAddress)_\(gatewayIP)_\(subnetMask)"
     }
+
+    public func containsIPv4(_ address: String) -> Bool {
+        func value(_ text: String) -> UInt32? {
+            let parts = text.split(separator: ".").compactMap { UInt32($0) }
+            guard parts.count == 4, parts.allSatisfy({ $0 < 256 }) else { return nil }
+            return parts.reduce(0) { ($0 << 8) | $1 }
+        }
+        guard (0...32).contains(cidrPrefix), let local = value(ipAddress), let other = value(address) else { return false }
+        let mask: UInt32 = cidrPrefix == 0 ? 0 : UInt32.max << (32 - cidrPrefix)
+        return local & mask == other & mask
+    }
 }

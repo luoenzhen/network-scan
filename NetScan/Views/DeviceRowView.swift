@@ -90,6 +90,11 @@ public struct DeviceRowView: View {
                     }
                 }
                 let riskCount = device.securityFindings.filter(\.requiresReview).count
+                if !device.annotation.isEmpty {
+                    Text(verbatim: device.savedMatch.rawValue)
+                        .font(.caption2)
+                        .foregroundColor(device.savedMatch == .current || device.savedMatch == .mac ? .secondary : .orange)
+                }
                 if riskCount > 0 {
                     Label("\(riskCount) service risk\(riskCount == 1 ? "" : "s") to review", systemImage: "exclamationmark.shield")
                         .font(.caption2)
