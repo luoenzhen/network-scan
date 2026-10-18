@@ -8,10 +8,11 @@ final class IdentityAndSecurityTests: XCTestCase {
         let model = DeviceListViewModel(observeNetwork: false)
         model.devices = [NetworkDevice(ipAddress: "192.168.1.10", vendor: "Network Device")]
         let started = expectation(description: "automatic lookup suspended")
+        let lock = NSLock()
         var pending: CheckedContinuation<(vendor: String, deviceType: DeviceType, resolvedHostname: String?), Never>?
         model.identityLookup = { _ in
             await withCheckedContinuation { continuation in
-                pending = continuation
+                lock.withLock { pending = continuation }
                 started.fulfill()
             }
         }
@@ -22,7 +23,7 @@ final class IdentityAndSecurityTests: XCTestCase {
         updated.vendor = "Manual Vendor"
         updated.deviceType = .computer
         model.updateDevice(updated, kind: .identity)
-        pending?.resume(returning: ("Old Vendor", .router, "old-host.local"))
+        lock.withLock { pending }?.resume(returning: ("Old Vendor", .router, "old-host.local"))
         await Task.yield()
         XCTAssertEqual(model.devices[0].hostname, "manual-host.local")
         XCTAssertEqual(model.devices[0].vendor, "Manual Vendor")
