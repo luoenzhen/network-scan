@@ -166,6 +166,11 @@ final class InventoryTests: XCTestCase {
         XCTAssertNotNil(store.storageMessage)
         XCTAssertEqual(store.associate(device(), network: "home", certainNetwork: true).annotation.name, "GoodWe Inverter")
         XCTAssertEqual(try String(contentsOf: blocker), "keep")
+        try FileManager.default.removeItem(at: blocker)
+        XCTAssertTrue(store.flush())
+        XCTAssertNil(store.storageMessage)
+        let restored = DeviceInventory(file: blocker.appendingPathComponent("inventory.json"))
+        XCTAssertEqual(restored.associate(device(), network: "home", certainNetwork: true).annotation.name, "GoodWe Inverter")
     }
 
     func testUnknownOUIWithRecognizableHostnameIsNotOUIEvidence() async {
@@ -178,6 +183,22 @@ final class InventoryTests: XCTestCase {
 
     func testImmediateConnectFailureIsNotAnOpenPort() {
         SubnetScannerService().probeHost(ip: "255.255.255.255", timeout: 0.1) { XCTAssertNil($0) }
+    }
+
+    func testInconclusiveFirstSocketDoesNotHideSecondResponse() {
+        var calls = 0
+        let result = SubnetScannerService.waitForHostResponse(
+            descriptors: [pollfd(fd: 10, events: Int16(POLLOUT), revents: 0), pollfd(fd: 11, events: Int16(POLLOUT), revents: 0)],
+            ports: [80, 443], timeout: 0.3,
+            pollSockets: { descriptors, milliseconds in
+                calls += 1
+                XCTAssertGreaterThan(milliseconds, 0)
+                descriptors[0].revents = Int16(POLLOUT)
+                return 1
+            }, socketError: { $0 == 10 ? EHOSTUNREACH : 0 })
+        XCTAssertEqual(calls, 2)
+        XCTAssertTrue(result.alive)
+        XCTAssertEqual(result.openPort, 443)
     }
 
     func testRedactionOmitsSensitiveStringsStructurally() {

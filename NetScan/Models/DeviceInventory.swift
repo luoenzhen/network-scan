@@ -92,6 +92,8 @@ public final class DeviceInventory {
     public private(set) var storageMessage: String?
     public var didFailToSave: (() -> Void)?
     private var pendingWrite: DispatchWorkItem?
+    private var preserveUnreadableFile = false
+    private var writeRevision = 0
 
     public init(file: URL? = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
         .appendingPathComponent("NetScan/inventory-v1.json")) {
@@ -99,9 +101,10 @@ public final class DeviceInventory {
         guard let file = file, FileManager.default.fileExists(atPath: file.path) else { return }
         do {
             let loaded = try JSONDecoder().decode(State.self, from: Data(contentsOf: file))
-            guard loaded.version == 1 else { storageMessage = "Saved inventory uses an unsupported version. It has not been overwritten."; return }
+            guard loaded.version == 1 else { preserveUnreadableFile = true; storageMessage = "Saved inventory uses an unsupported version. It has not been overwritten."; return }
             state = loaded
         } catch {
+            preserveUnreadableFile = true
             storageMessage = "Saved inventory could not be read. It has not been overwritten."
         }
     }
@@ -197,32 +200,37 @@ public final class DeviceInventory {
     }
 
     private func persist() {
-        guard storageMessage == nil, let file = file else { return }
+        guard !preserveUnreadableFile, let file = file else { return }
         pendingWrite?.cancel()
+        writeRevision += 1
+        let revision = writeRevision
         let snapshot = state
         let work = DispatchWorkItem { [weak self] in
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try JSONEncoder().encode(snapshot).write(to: file, options: .atomic)
+                self?.reportWriteResult(success: true, revision: revision)
             } catch {
-                self?.reportWriteFailure()
+                self?.reportWriteResult(success: false, revision: revision)
             }
         }
         pendingWrite = work
         writer.asyncAfter(deadline: .now() + 0.2, execute: work)
     }
 
-    private func reportWriteFailure() {
+    private func reportWriteResult(success: Bool, revision: Int) {
         DispatchQueue.main.async { [weak self] in
-            self?.storageMessage = "Changes could not be saved on this iPhone. The last saved inventory has been preserved."
-            self?.didFailToSave?()
+            guard let self = self, self.writeRevision == revision else { return }
+            self.storageMessage = success ? nil : "Changes could not be saved on this iPhone. The last saved inventory has been preserved."
+            self.didFailToSave?()
         }
     }
 
     /// Used before leaving the foreground and by persistence regressions.
     @discardableResult public func flush() -> Bool {
         pendingWrite?.cancel()
-        guard storageMessage == nil else { return false }
+        writeRevision += 1
+        guard !preserveUnreadableFile else { return false }
         guard let file = file else { return true }
         let snapshot = state
         let success = writer.sync { () -> Bool in
@@ -232,10 +240,8 @@ public final class DeviceInventory {
                 return true
             } catch { return false }
         }
-        if !success {
-            storageMessage = "Changes could not be saved on this iPhone. The last saved inventory has been preserved."
-            didFailToSave?()
-        }
+        storageMessage = success ? nil : "Changes could not be saved on this iPhone. The last saved inventory has been preserved."
+        didFailToSave?()
         return success
     }
 }

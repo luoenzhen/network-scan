@@ -210,24 +210,49 @@ public class SubnetScannerService {
             descriptors.append(pollfd(fd: fd, events: Int16(POLLOUT), revents: 0))
             descriptorPorts.append(port)
         }
-        if !live && !descriptors.isEmpty {
-            let count = descriptors.count
-            let ready = poll(&descriptors, nfds_t(count), Int32(max(0, min(timeout, 1.5)) * 1000))
-            if ready > 0 {
-                for (index, descriptor) in descriptors.enumerated() where descriptor.revents & Int16(POLLOUT | POLLERR | POLLHUP) != 0 {
-                    var error: Int32 = 0
-                    var length = socklen_t(MemoryLayout<Int32>.size)
-                    if getsockopt(descriptor.fd, SOL_SOCKET, SO_ERROR, &error, &length) == 0 {
-                        if error == 0 { live = true; openPort = Int(descriptorPorts[index]) }
-                        else if error == ECONNREFUSED { live = true }
-                    }
-                }
-            }
+        if !live {
+            let response = Self.waitForHostResponse(descriptors: descriptors, ports: descriptorPorts, timeout: timeout)
+            live = response.alive
+            openPort = response.openPort
         }
         guard live else { completion(nil); return }
         var device = buildDeviceRecord(ip: ip, latency: (CFAbsoluteTimeGetCurrent() - start) * 1000, openPort: openPort)
         device.evidence.append(IdentityEvidence(source: "TCP discovery", observation: openPort.map { "TCP \($0) accepted a connection." } ?? "A TCP connection was explicitly refused; host responded."))
         completion(device)
+    }
+
+    /// Keep inconclusive failures from consuming the remaining sockets' shared deadline.
+    static func waitForHostResponse(descriptors: [pollfd], ports: [UInt16], timeout: TimeInterval,
+                                    pollSockets: ((inout [pollfd], Int32) -> Int32)? = nil,
+                                    socketError: ((Int32) -> Int32?)? = nil) -> (alive: Bool, openPort: Int?) {
+        guard descriptors.count == ports.count, timeout.isFinite else { return (false, nil) }
+        var pending = descriptors
+        var pendingPorts = ports
+        let deadline = ProcessInfo.processInfo.systemUptime + max(0, min(timeout, 1.5))
+        while !pending.isEmpty {
+            let remaining = deadline - ProcessInfo.processInfo.systemUptime
+            guard remaining > 0 else { break }
+            for index in pending.indices { pending[index].revents = 0 }
+            let count = pending.count
+            let milliseconds = Int32(max(1, remaining * 1000))
+            let ready = pollSockets?(&pending, milliseconds) ?? poll(&pending, nfds_t(count), milliseconds)
+            if ready < 0 && errno == EINTR { continue }
+            guard ready > 0 else { break }
+            for index in pending.indices.reversed() where pending[index].revents != 0 {
+                let error: Int32?
+                if let socketError = socketError { error = socketError(pending[index].fd) }
+                else {
+                    var value: Int32 = 0
+                    var length = socklen_t(MemoryLayout<Int32>.size)
+                    error = getsockopt(pending[index].fd, SOL_SOCKET, SO_ERROR, &value, &length) == 0 ? value : nil
+                }
+                if error == 0 && pending[index].revents & Int16(POLLOUT) != 0 { return (true, Int(pendingPorts[index])) }
+                if error == ECONNREFUSED { return (true, nil) }
+                pending.remove(at: index)
+                pendingPorts.remove(at: index)
+            }
+        }
+        return (false, nil)
     }
 
     private func buildDeviceRecord(ip: String, latency: Double, openPort: Int?) -> NetworkDevice {
