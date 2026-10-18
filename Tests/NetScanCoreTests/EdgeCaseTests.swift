@@ -159,6 +159,46 @@ final class EdgeCaseTests: XCTestCase {
         await fulfillment(of: [stopped], timeout: 2)
     }
 
+    func testHTTPAuthenticationEvidenceRequiresUnencryptedResponse() async {
+        HTTPProbeProtocol.configure(server: "HTTPD", body: Data(repeating: 120, count: 2048), authentication: "Basic realm=\"A21\"")
+        let plain = await OUIVendorDatabase.probeHTTPIdentityWithEvidence(ip: "127.0.0.1", configuration: configuration())
+        XCTAssertEqual(plain?.vendor, "Network Device")
+        XCTAssertTrue(plain?.evidence.contains { $0.source == "HTTP authentication" } == true)
+        XCTAssertTrue(plain?.evidence.contains { $0.source == "HTTP Server header (self-reported)" && $0.observation == "HTTPD" } == true)
+        HTTPProbeProtocol.configure(server: "HTTPD", body: Data(repeating: 120, count: 2048), authentication: "Basic realm=\"A21\"", responseScheme: "https")
+        let secure = await OUIVendorDatabase.probeHTTPIdentityWithEvidence(ip: "127.0.0.1", configuration: configuration())
+        XCTAssertFalse(secure?.evidence.contains { $0.source == "HTTP authentication" } == true)
+    }
+
+    func testHTTPRedirectDoesNotContactOrIdentifyAnotherHost() async throws {
+        let source = try NWListener(using: .tcp, on: .any)
+        let target = try NWListener(using: .tcp, on: .any)
+        let ready = expectation(description: "redirect listeners ready")
+        ready.expectedFulfillmentCount = 2
+        let contacted = expectation(description: "redirect destination must not be contacted")
+        contacted.isInverted = true
+        let connections = HTTPServerConnections()
+        source.stateUpdateHandler = { if case .ready = $0 { ready.fulfill() } }
+        target.stateUpdateHandler = { if case .ready = $0 { ready.fulfill() } }
+        target.newConnectionHandler = { connection in contacted.fulfill(); connection.cancel() }
+        target.start(queue: .global())
+        source.start(queue: .global())
+        defer { source.cancel(); target.cancel(); connections.close() }
+        await fulfillment(of: [ready], timeout: 2)
+        let destinationPort = try XCTUnwrap(target.port).rawValue
+        source.newConnectionHandler = { connection in
+            connections.add(connection)
+            connection.start(queue: .global())
+            connection.receive(minimumIncompleteLength: 6, maximumLength: 2048) { _, _, _, _ in
+                let headers = "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:\(destinationPort)/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                connection.send(content: Data(headers.utf8), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in })
+            }
+        }
+        let result = await OUIVendorDatabase.probeHTTPIdentity(ip: "127.0.0.1:\(try XCTUnwrap(source.port).rawValue)", configuration: .ephemeral)
+        XCTAssertNil(result)
+        await fulfillment(of: [contacted], timeout: 0.2)
+    }
+
     func testRealHTTPServerIdentifiesFromHeadersWhileBodyStalls() async throws {
         let listener = try NWListener(using: .tcp, on: .any)
         let ready = expectation(description: "HTTP listener ready")
@@ -295,12 +335,22 @@ private final class HTTPServerConnections: @unchecked Sendable {
 }
 
 private final class HTTPProbeProtocol: URLProtocol {
+    private struct Fixture {
+        var server: String?
+        var body = Data()
+        var started: (() -> Void)?
+        var stopped: (() -> Void)?
+        var authentication: String?
+        var responseScheme: String?
+    }
     private static let lock = NSLock()
-    private static var fixture: (server: String?, body: Data, started: (() -> Void)?, stopped: (() -> Void)?) = (nil, Data(), nil, nil)
+    private static var fixture = Fixture()
     private var stopped: (() -> Void)?
 
-    static func configure(server: String?, body: Data, started: (() -> Void)? = nil, stopped: (() -> Void)? = nil) {
-        lock.withLock { fixture = (server, body, started, stopped) }
+    static func configure(server: String?, body: Data, started: (() -> Void)? = nil, stopped: (() -> Void)? = nil,
+                          authentication: String? = nil, responseScheme: String? = nil) {
+        lock.withLock { fixture = Fixture(server: server, body: body, started: started, stopped: stopped,
+                                         authentication: authentication, responseScheme: responseScheme) }
     }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -311,7 +361,10 @@ private final class HTTPProbeProtocol: URLProtocol {
         snapshot.started?()
         var headers = ["Content-Type": "text/plain", "Content-Length": "1048576"]
         if let server = snapshot.server { headers["server"] = server }
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!
+        headers["WWW-Authenticate"] = snapshot.authentication
+        var url = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
+        if let scheme = snapshot.responseScheme { url.scheme = scheme }
+        let response = HTTPURLResponse(url: url.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         if request.httpMethod == "HEAD" {
             client?.urlProtocolDidFinishLoading(self)
