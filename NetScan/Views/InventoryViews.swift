@@ -151,7 +151,14 @@ struct NetworkReportView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Hide identifying details", isOn: $redacted).accessibilityIdentifier("redact-report")
+                HStack {
+                    Text("Hide identifying details")
+                    Spacer()
+                    Toggle("Hide identifying details", isOn: $redacted)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .accessibilityIdentifier("redact-report")
+                }
                 Text(redacted ? "Names, notes, locations, addresses, hostnames, network identifiers, and raw evidence are omitted." : "This report includes identifying details and personal notes. Review it before sharing.")
                     .font(.caption).foregroundColor(redacted ? .secondary : .orange)
                 HStack {

@@ -63,6 +63,8 @@ final class DeviceDetailUITests: XCTestCase {
         XCTAssertFalse(previewText().contains("127.0.0.1"))
         let privacy = app.switches["redact-report"]
         privacy.tap()
+        let switchedOff = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '0'"), object: privacy)
+        XCTAssertEqual(XCTWaiter.wait(for: [switchedOff], timeout: 3), .completed)
         let updated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             previewText().contains("GoodWe Inverter") && previewText().contains("Garage")
         }, object: preview)
