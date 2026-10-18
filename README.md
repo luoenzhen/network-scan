@@ -16,6 +16,7 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
    - Offers hostname and HTTP identity lookup, plus an embedded IEEE OUI database when a MAC is supplied. Bonjour browsing is available as a service but is not yet connected to device identity enrichment.
    - Categorizes devices automatically (Smartphones, Computers, Routers, Smart Home/IoT, Printers, Gaming consoles, Smart TVs).
    - Automatically resolves unidentified devices after discovery, with one retry after 15 seconds. Hostnames remain visible when iOS hides the MAC address. Rescanning, changing networks, or entering the background cancels pending updates.
+   - HTTP identification first requests headers with HEAD, then reads at most 2,048 bytes with GET if needed. Each request has a 1.5-second timeout; an unsuccessful two-stage probe can take up to roughly three seconds.
    - Distinguishes the default gateway router and the local iPhone.
 
 2. **Local Device Traffic Monitor (KB/second)**

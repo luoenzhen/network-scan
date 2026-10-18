@@ -1211,8 +1211,15 @@ public struct OUIVendorDatabase {
     }
 
     static func probeHTTPIdentity(ip: String, configuration: URLSessionConfiguration) async -> (vendor: String, deviceType: DeviceType)? {
+        // HEAD completes without a body, including on servers whose GET response stalls.
+        if let identity = await probeHTTPIdentity(ip: ip, method: "HEAD", configuration: configuration) { return identity }
+        return await probeHTTPIdentity(ip: ip, method: "GET", configuration: configuration)
+    }
+
+    private static func probeHTTPIdentity(ip: String, method: String, configuration: URLSessionConfiguration) async -> (vendor: String, deviceType: DeviceType)? {
         guard !Task.isCancelled, let url = URL(string: "http://\(ip)/") else { return nil }
         var request = URLRequest(url: url)
+        request.httpMethod = method
         request.timeoutInterval = 1.5
         request.setValue("NetScan-iOS/1.0", forHTTPHeaderField: "User-Agent")
         let probe = HTTPIdentityProbe()
@@ -1307,16 +1314,10 @@ public struct OUIVendorDatabase {
             self.session = session
             let task = session.dataTask(with: request)
             lock.unlock()
-            #if DEBUG
-            print("HTTP probe: start")
-            #endif
             task.resume()
         }
 
         func finish(_ result: (vendor: String, deviceType: DeviceType)?) {
-            #if DEBUG
-            print("HTTP probe: finish \(result?.vendor ?? "nil")")
-            #endif
             lock.lock()
             guard !finished else { lock.unlock(); return }
             finished = true
@@ -1331,9 +1332,6 @@ public struct OUIVendorDatabase {
 
         func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                         completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-            #if DEBUG
-            print("HTTP probe: response \((response as? HTTPURLResponse)?.allHeaderFields ?? [:])")
-            #endif
             guard let http = response as? HTTPURLResponse else {
                 completionHandler(.cancel)
                 finish(nil)
@@ -1349,9 +1347,6 @@ public struct OUIVendorDatabase {
         }
 
         func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-            #if DEBUG
-            print("HTTP probe: data \(data.count)")
-            #endif
             prefix.append(data.prefix(max(0, 2048 - prefix.count)))
             guard let response = response else { return }
             let match = OUIVendorDatabase.parseHTTPIdentity(response: response, data: prefix)
@@ -1359,9 +1354,6 @@ public struct OUIVendorDatabase {
         }
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-            #if DEBUG
-            print("HTTP probe: completed \(String(describing: error))")
-            #endif
             let match = error == nil ? response.flatMap { OUIVendorDatabase.parseHTTPIdentity(response: $0, data: prefix) } : nil
             finish(match)
         }

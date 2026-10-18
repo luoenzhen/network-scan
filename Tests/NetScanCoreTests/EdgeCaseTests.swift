@@ -133,7 +133,7 @@ final class EdgeCaseTests: XCTestCase {
         XCTAssertFalse(model.isScanningPorts)
     }
 
-    func testHTTPIdentityUsesHeadersWithoutWaitingForBody() async {
+    func testHTTPIdentityUsesHEADBannerWithoutWaitingForBody() async {
         HTTPProbeProtocol.configure(server: "Synology", body: Data())
         let start = Date()
         let result = await OUIVendorDatabase.probeHTTPIdentity(ip: "127.0.0.1", configuration: configuration())
@@ -141,7 +141,7 @@ final class EdgeCaseTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 1)
     }
 
-    func testHTTPIdentityStopsAtBodyLimitAndCancelsStreamingResponse() async {
+    func testHTTPIdentityFallsBackFromUnrecognizedHEADToBoundedGET() async {
         let stopped = expectation(description: "stream cancelled after prefix")
         let prefix = Data(("<title>Raspberry Pi</title>" + String(repeating: "x", count: 2048)).utf8)
         HTTPProbeProtocol.configure(server: nil, body: prefix, stopped: { stopped.fulfill() })
@@ -167,9 +167,11 @@ final class EdgeCaseTests: XCTestCase {
         listener.newConnectionHandler = { connection in
             connections.add(connection)
             connection.start(queue: .global())
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 2048) { _, _, _, _ in
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 2048) { data, _, _, error in
+                XCTAssertNil(error)
+                XCTAssertTrue(String(data: data ?? Data(), encoding: .utf8)?.hasPrefix("HEAD /") == true)
                 let headers = "HTTP/1.1 200 OK\r\nServer: Synology\r\nContent-Type: text/plain\r\nContent-Length: 1024\r\nConnection: keep-alive\r\n\r\n"
-                connection.send(content: Data(headers.utf8), completion: .contentProcessed { _ in })
+                connection.send(content: Data(headers.utf8), completion: .contentProcessed { XCTAssertNil($0) })
             }
         }
         listener.start(queue: .global())
@@ -199,6 +201,27 @@ final class EdgeCaseTests: XCTestCase {
         let result = await lookup.value
         XCTAssertNil(result)
         await fulfillment(of: [request], timeout: 0.2)
+    }
+
+    func testCancellationDuringHEADPreventsGETFallback() async {
+        let lock = NSLock()
+        var requests = 0
+        var lookup: Task<(vendor: String, deviceType: DeviceType)?, Never>?
+        HTTPProbeProtocol.configure(server: nil, body: Data(), started: {
+            lock.withLock {
+                requests += 1
+                lookup?.cancel()
+            }
+        })
+        let config = configuration()
+        let task = lock.withLock {
+            let task = Task { await OUIVendorDatabase.probeHTTPIdentity(ip: "127.0.0.1", configuration: config) }
+            lookup = task
+            return task
+        }
+        let result = await task.value
+        XCTAssertNil(result)
+        XCTAssertEqual(lock.withLock { requests }, 1)
     }
 
     private func configuration() -> URLSessionConfiguration {
@@ -284,12 +307,16 @@ private final class HTTPProbeProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let snapshot = Self.lock.withLock { Self.fixture }
-        Self.lock.withLock { stopped = snapshot.stopped }
+        Self.lock.withLock { stopped = request.httpMethod == "GET" ? snapshot.stopped : nil }
         snapshot.started?()
         var headers = ["Content-Type": "text/plain", "Content-Length": "1048576"]
         if let server = snapshot.server { headers["server"] = server }
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if request.httpMethod == "HEAD" {
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         if !snapshot.body.isEmpty { client?.urlProtocol(self, didLoad: snapshot.body) }
         // Deliberately never finish: production must return from headers or the byte cap.
     }
