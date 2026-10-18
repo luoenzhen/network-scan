@@ -150,7 +150,8 @@ public class NetworkInterfaceService: ObservableObject {
             let cidr = calculateCIDR(netmask: mask)
             let gateway = configuredGateway(path: path, ip: ip, mask: mask)
             let bcast = wifiBroadcast ?? inferBroadcast(ip: ip, mask: mask)
-            let ssid = fetchSSID() ?? "Local Wi-Fi Network"
+            let actualSSID = fetchSSID()
+            let ssid = actualSSID ?? "Local Wi-Fi Network"
             
             return NetworkInterfaceInfo(
                 interfaceName: wifiIfName,
@@ -163,7 +164,8 @@ public class NetworkInterfaceService: ObservableObject {
                 bssid: "02:00:00:00:00:00",
                 isConnected: true,
                 interfaceType: "Wi-Fi",
-                isLAN: true
+                isLAN: true,
+                networkNameIsAvailable: actualSSID?.isEmpty == false
             )
         }
         

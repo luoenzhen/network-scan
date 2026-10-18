@@ -118,7 +118,7 @@ public final class DeviceInventory {
             let base = value & mask
             network = [24, 16, 8, 0].map { String((base >> $0) & 255) }.joined(separator: ".")
         }
-        let bssid = interface.bssid == "00:11:22:33:44:55" ? "" : interface.bssid.lowercased()
+        let bssid = ["", "00:11:22:33:44:55", "02:00:00:00:00:00"].contains(interface.bssid.lowercased()) ? "" : interface.bssid.lowercased()
         return [interface.ssid, bssid, "\(network)/\(interface.cidrPrefix)", interface.gatewayIP].joined(separator: "|")
     }
 
@@ -130,15 +130,18 @@ public final class DeviceInventory {
     }
 
     public func associate(_ device: NetworkDevice, network: String, certainNetwork: Bool,
-                          duplicateHostnames: Set<String> = []) -> NetworkDevice {
+                          duplicateHostnames: Set<String> = [], duplicateMACs: Set<String> = []) -> NetworkDevice {
         var device = device
         var records = state.records[network] ?? []
         let mac = Self.mac(device), host = Self.host(device)
         let compatible: (Record) -> Bool = { mac.isEmpty || $0.mac.isEmpty || mac == $0.mac }
         var index: Int?
         var match: SavedDeviceMatch = .none
-        if !mac.isEmpty, let found = records.firstIndex(where: { $0.mac == mac }) { index = found; match = .mac }
-        if index == nil && !host.isEmpty && !duplicateHostnames.contains(host) {
+        if !mac.isEmpty && !duplicateMACs.contains(mac) {
+            let matches = records.indices.filter { records[$0].mac == mac }
+            if matches.count == 1 { index = matches[0]; match = .mac }
+        }
+        if index == nil && !host.isEmpty && !duplicateHostnames.contains(host) && !duplicateMACs.contains(mac) {
             let candidates = records.indices.filter { records[$0].hostname == host && compatible(records[$0]) }
             if candidates.count == 1 { index = candidates[0]; match = .hostname }
         }
@@ -217,15 +220,22 @@ public final class DeviceInventory {
     }
 
     /// Used before leaving the foreground and by persistence regressions.
-    public func flush() {
+    @discardableResult public func flush() -> Bool {
         pendingWrite?.cancel()
-        guard storageMessage == nil, let file = file else { return }
+        guard storageMessage == nil else { return false }
+        guard let file = file else { return true }
         let snapshot = state
-        writer.sync {
+        let success = writer.sync { () -> Bool in
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try JSONEncoder().encode(snapshot).write(to: file, options: .atomic)
-            } catch { reportWriteFailure() }
+                return true
+            } catch { return false }
         }
+        if !success {
+            storageMessage = "Changes could not be saved on this iPhone. The last saved inventory has been preserved."
+            didFailToSave?()
+        }
+        return success
     }
 }

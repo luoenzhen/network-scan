@@ -203,8 +203,10 @@ public class SubnetScannerService {
             let result = withUnsafePointer(to: &address) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
             }
-            if result == 0 { live = true; openPort = Int(port) }
-            else if errno == ECONNREFUSED { live = true }
+            if result == 0 { live = true; openPort = Int(port); close(fd); continue }
+            let error = errno
+            if error == ECONNREFUSED { live = true; close(fd); continue }
+            guard error == EINPROGRESS || error == EWOULDBLOCK else { close(fd); continue }
             descriptors.append(pollfd(fd: fd, events: Int16(POLLOUT), revents: 0))
             descriptorPorts.append(port)
         }

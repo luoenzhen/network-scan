@@ -1215,7 +1215,7 @@ public struct OUIVendorDatabase {
         return result.vendor == "Network Device" ? nil : (result.vendor, result.deviceType)
     }
 
-    private static func probeHTTPIdentityWithEvidence(ip: String, configuration: URLSessionConfiguration) async -> DeviceIdentityResult? {
+    static func probeHTTPIdentityWithEvidence(ip: String, configuration: URLSessionConfiguration) async -> DeviceIdentityResult? {
         // HEAD completes without a body, including on servers whose GET response stalls.
         let headers = await probeHTTPIdentity(ip: ip, method: "HEAD", configuration: configuration)
         if let headers = headers, headers.vendor != "Network Device" { return headers }
@@ -1346,7 +1346,8 @@ public struct OUIVendorDatabase {
             if let server = response?.value(forHTTPHeaderField: "Server") {
                 evidence.append(IdentityEvidence(source: "HTTP Server header (self-reported)", observation: server))
             }
-            if response?.value(forHTTPHeaderField: "WWW-Authenticate")?.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("basic ") == true {
+            if response?.url?.scheme?.lowercased() == "http",
+               response?.value(forHTTPHeaderField: "WWW-Authenticate")?.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("basic ") == true {
                 evidence.append(IdentityEvidence(source: "HTTP authentication", observation: "HTTP Basic authentication offered over unencrypted HTTP."))
             }
             if let match = match { evidence.append(IdentityEvidence(source: "HTTP classification (inferred)", observation: "Banner or page-title pattern suggests \(match.vendor).")) }
@@ -1380,6 +1381,12 @@ public struct OUIVendorDatabase {
             let match = error == nil ? response.flatMap { OUIVendorDatabase.parseHTTPIdentity(response: $0, data: prefix) } : nil
             finish(identified(match))
         }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+            // A remote redirect's banner is not evidence about this LAN device.
+            completionHandler(nil)
+        }
     }
     
     // MARK: - Asynchronous Identification (With Online Internet Search & LAN Fallbacks)
@@ -1407,7 +1414,8 @@ public struct OUIVendorDatabase {
     }
 
     static func identifyDeviceWithEvidence(ipAddress: String?, macAddress: String?, hostname: String,
-                                            reverseDNS: (String) async -> String?) async -> DeviceIdentityResult {
+                                            reverseDNS: (String) async -> String?,
+                                            onlineLookup: (String) async -> (vendor: String, defaultType: DeviceType)? = { await lookupOnline(macAddress: $0) }) async -> DeviceIdentityResult {
         var evidence: [IdentityEvidence] = []
         func result(_ vendor: String, _ type: DeviceType, _ host: String?) -> DeviceIdentityResult {
             DeviceIdentityResult(vendor: vendor, deviceType: type, resolvedHostname: host, evidence: evidence)
@@ -1424,8 +1432,8 @@ public struct OUIVendorDatabase {
         
         // 1. Fast local MAC lookup first
         if let mac = macAddress, !mac.isEmpty, !mac.contains("Unknown") && !mac.contains("Restricted") {
-            let local = identifyDevice(macAddress: mac, hostname: hostname)
-            if local.vendor != "Network Device" && local.vendor != "Unknown" && !local.vendor.isEmpty {
+            if lookup(macAddress: mac) != nil {
+                let local = identifyDevice(macAddress: mac, hostname: hostname)
                 evidence.append(IdentityEvidence(source: "Local OUI allocation", observation: "MAC prefix allocated to \(local.vendor); this can identify an embedded module rather than the appliance."))
                 return result(local.vendor, local.deviceType, discoveredHostname)
             }
@@ -1436,7 +1444,7 @@ public struct OUIVendorDatabase {
                                         .replacingOccurrences(of: ".", with: "")
             let hexChars = CharacterSet(charactersIn: "0123456789ABCDEF")
             if clean.count >= 6 && clean.unicodeScalars.allSatisfy({ hexChars.contains($0) }) {
-                if let online = await lookupOnline(macAddress: mac) {
+                if let online = await onlineLookup(mac) {
                     let type = inferDeviceType(hostname: hostname, vendor: online.vendor)
                     evidence.append(IdentityEvidence(source: "Online OUI allocation", observation: "MAC prefix allocated to \(online.vendor)."))
                     return result(online.vendor, type == .unknown ? online.defaultType : type, discoveredHostname)

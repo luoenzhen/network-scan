@@ -166,7 +166,7 @@ public struct DeviceListView: View {
                 if let device = viewModel.devices.first(where: { $0.id == id }) {
                     DeviceDetailView(device: device, onUpdate: { updated, kind in
                         viewModel.updateDevice(updated, kind: kind)
-                    })
+                    }, storageError: { viewModel.storageMessage })
                 } else {
                     Text("This device is no longer in the current scan. Return to Devices to scan again.")
                         .padding()

@@ -121,6 +121,65 @@ final class InventoryTests: XCTestCase {
         XCTAssertFalse(interface.containsIPv4("999.168.87.31"))
     }
 
+    @MainActor
+    func testProductionFallbackNetworkIsUncertainAndSyntheticBSSIDIsExcluded() {
+        let interface = NetworkInterfaceInfo(ipAddress: "192.168.87.2", ssid: "Local Wi-Fi Network",
+                                             bssid: "02:00:00:00:00:00", isConnected: true, isLAN: true)
+        let model = DeviceListViewModel(observeNetwork: false)
+        model.handleInterfaceChange(interface, pathResolved: false)
+        XCTAssertFalse(model.networkIsCertain)
+        XCTAssertFalse(DeviceInventory.networkScope(interface).contains("02:00:00:00:00:00"))
+    }
+
+    @MainActor
+    func testBonjourFirstThenLocalRecordPreservesStrongerFields() {
+        let model = DeviceListViewModel(observeNetwork: false)
+        model.devices = [device("192.168.1.2", host: "phone.local")]
+        let id = model.devices[0].id
+        let local = NetworkDevice(ipAddress: "192.168.1.2", macAddress: "00:17:F2:00:00:01", hostname: "iPhone",
+                                  vendor: "Apple Inc.", deviceType: .phone, isLocalDevice: true)
+        model.mergeDiscoveredDevice(local)
+        XCTAssertEqual(model.devices[0].id, id)
+        XCTAssertTrue(model.devices[0].isLocalDevice)
+        XCTAssertEqual(model.devices[0].hostname, "phone.local")
+        XCTAssertEqual(model.devices[0].vendor, "Apple Inc.")
+        XCTAssertTrue(model.devices[0].hasKnownMACAddress)
+    }
+
+    func testDuplicateMACsDoNotCoalesceSeparateObservations() {
+        let store = DeviceInventory(file: nil)
+        let mac = "28:9C:6E:00:00:01"
+        let first = store.associate(device(mac: mac), network: "home", certainNetwork: true, duplicateMACs: ["289c6e000001"])
+        let second = store.associate(device("192.168.1.32", mac: mac), network: "home", certainNetwork: true, duplicateMACs: ["289c6e000001"])
+        XCTAssertNotEqual(first.inventoryID, second.inventoryID)
+    }
+
+    func testSaveFailureIsSurfacedAndEditsRemainInMemory() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let blocker = directory.appendingPathComponent("file-not-folder")
+        try Data("keep".utf8).write(to: blocker)
+        let store = DeviceInventory(file: blocker.appendingPathComponent("inventory.json"))
+        _ = label(device(), store: store)
+        XCTAssertFalse(store.flush())
+        XCTAssertNotNil(store.storageMessage)
+        XCTAssertEqual(store.associate(device(), network: "home", certainNetwork: true).annotation.name, "GoodWe Inverter")
+        XCTAssertEqual(try String(contentsOf: blocker), "keep")
+    }
+
+    func testUnknownOUIWithRecognizableHostnameIsNotOUIEvidence() async {
+        let result = await OUIVendorDatabase.identifyDeviceWithEvidence(ipAddress: nil, macAddress: "FE:00:00:00:00:01",
+                                                                      hostname: "raspberrypi.local", reverseDNS: { _ in nil }, onlineLookup: { _ in nil })
+        XCTAssertEqual(result.vendor, "Raspberry Pi Foundation")
+        XCTAssertFalse(result.evidence.contains { $0.source.contains("OUI") })
+        XCTAssertTrue(result.evidence.contains { $0.source == "Hostname classification (inferred)" })
+    }
+
+    func testImmediateConnectFailureIsNotAnOpenPort() {
+        SubnetScannerService().probeHost(ip: "255.255.255.255", timeout: 0.1) { XCTAssertNil($0) }
+    }
+
     func testRedactionOmitsSensitiveStringsStructurally() {
         let store = DeviceInventory(file: nil)
         var device = label(self.device(mac: "28:9C:6E:00:00:01"), store: store)

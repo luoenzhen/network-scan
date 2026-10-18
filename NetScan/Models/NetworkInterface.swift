@@ -19,6 +19,7 @@ public struct NetworkInterfaceInfo: Codable, Equatable {
     public var isConnected: Bool
     public var interfaceType: String
     public var isLAN: Bool
+    public var networkNameIsAvailable: Bool
     
     public init(
         interfaceName: String = "en0",
@@ -31,7 +32,8 @@ public struct NetworkInterfaceInfo: Codable, Equatable {
         bssid: String = "00:11:22:33:44:55",
         isConnected: Bool = false,
         interfaceType: String = "Wi-Fi (802.11ax)",
-        isLAN: Bool = false
+        isLAN: Bool = false,
+        networkNameIsAvailable: Bool = false
     ) {
         self.interfaceName = interfaceName
         self.ipAddress = ipAddress
@@ -44,6 +46,7 @@ public struct NetworkInterfaceInfo: Codable, Equatable {
         self.isConnected = isConnected
         self.interfaceType = interfaceType
         self.isLAN = isLAN
+        self.networkNameIsAvailable = networkNameIsAvailable
     }
     
     public var subnetDescription: String {

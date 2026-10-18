@@ -15,10 +15,12 @@ public struct DeviceDetailView: View {
     @State private var showWolAlert = false
     @State private var editingIdentity = false
     private let sourceDevice: NetworkDevice
+    private let storageError: (() -> String?)?
     @Environment(\.scenePhase) private var scenePhase
     
-    public init(device: NetworkDevice, onUpdate: ((NetworkDevice, DeviceUpdateKind) -> Void)? = nil) {
+    public init(device: NetworkDevice, onUpdate: ((NetworkDevice, DeviceUpdateKind) -> Void)? = nil, storageError: (() -> String?)? = nil) {
         sourceDevice = device
+        self.storageError = storageError
         _viewModel = StateObject(wrappedValue: DeviceDetailViewModel(device: device, onDeviceUpdated: onUpdate))
     }
     
@@ -318,7 +320,10 @@ public struct DeviceDetailView: View {
             }
         }
         .sheet(isPresented: $editingIdentity) {
-            DeviceInventoryEditor(device: viewModel.device) { viewModel.saveAnnotation($0) }
+            DeviceInventoryEditor(device: viewModel.device) {
+                viewModel.saveAnnotation($0)
+                return storageError?()
+            }
         }
         .alert(isPresented: $showWolAlert) {
             Alert(

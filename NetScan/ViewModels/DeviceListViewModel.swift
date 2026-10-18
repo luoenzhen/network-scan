@@ -248,14 +248,7 @@ public class DeviceListViewModel: ObservableObject {
             },
             onDeviceFound: { [weak self] newDevice in
                 guard let self = self, self.scanID == run else { return }
-                if let index = self.devices.firstIndex(where: { $0.ipAddress == newDevice.ipAddress }) {
-                    self.devices[index].latencyMs = newDevice.latencyMs
-                    self.devices[index].isGateway = newDevice.isGateway
-                    self.devices[index].openPorts = Array(Set(self.devices[index].openPorts + newDevice.openPorts)).sorted()
-                    self.devices[index].evidence += newDevice.evidence
-                } else {
-                    self.devices.append(newDevice)
-                }
+                self.mergeDiscoveredDevice(newDevice)
             },
             onCompletion: { [weak self] _ in
                 guard let self = self, self.scanID == run else { return }
@@ -271,14 +264,35 @@ public class DeviceListViewModel: ObservableObject {
     
     private func configureInventory(_ interface: NetworkInterfaceInfo) {
         networkScope = DeviceInventory.networkScope(interface)
-        networkIsCertain = !["", "Wi-Fi Network", "Wi-Fi", "Ethernet"].contains(interface.ssid)
+        networkIsCertain = interface.networkNameIsAvailable
         history = inventory.allHistory
     }
 
     func associateDevices() {
         let hosts = devices.filter(\.hasResolvedHostname).map { $0.hostname.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". ")) }
         let duplicates = Set(Dictionary(grouping: hosts, by: { $0 }).filter { $0.value.count > 1 }.keys)
-        devices = devices.map { inventory.associate($0, network: networkScope, certainNetwork: networkIsCertain, duplicateHostnames: duplicates) }
+        let macs = devices.filter(\.hasKnownMACAddress).map { $0.macAddress.lowercased().filter { $0.isHexDigit } }
+        let duplicateMACs = Set(Dictionary(grouping: macs, by: { $0 }).filter { $0.value.count > 1 }.keys)
+        devices = devices.map { inventory.associate($0, network: networkScope, certainNetwork: networkIsCertain,
+                                                   duplicateHostnames: duplicates, duplicateMACs: duplicateMACs) }
+    }
+
+    func mergeDiscoveredDevice(_ newDevice: NetworkDevice) {
+        guard let index = devices.firstIndex(where: { $0.ipAddress == newDevice.ipAddress }) else {
+            devices.append(newDevice)
+            return
+        }
+        devices[index].latencyMs = newDevice.latencyMs
+        devices[index].isGateway = devices[index].isGateway || newDevice.isGateway
+        devices[index].isLocalDevice = devices[index].isLocalDevice || newDevice.isLocalDevice
+        if !devices[index].hasResolvedHostname && newDevice.hasResolvedHostname { devices[index].hostname = newDevice.hostname }
+        if newDevice.hasKnownMACAddress { devices[index].macAddress = newDevice.macAddress }
+        if !["", "Network Device", "Unknown", "Generic Device"].contains(newDevice.vendor) { devices[index].vendor = newDevice.vendor }
+        if newDevice.deviceType != .unknown { devices[index].deviceType = newDevice.deviceType }
+        devices[index].openPorts = Array(Set(devices[index].openPorts + newDevice.openPorts)).sorted()
+        for evidence in newDevice.evidence where !devices[index].evidence.contains(where: { $0.id == evidence.id }) {
+            devices[index].evidence.append(evidence)
+        }
     }
 
     func acceptBonjour(_ observation: BonjourObservation, interface: NetworkInterfaceInfo, run: UUID) {

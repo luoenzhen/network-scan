@@ -4,9 +4,10 @@ import UniformTypeIdentifiers
 struct DeviceInventoryEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var annotation: DeviceAnnotation
-    let save: (DeviceAnnotation) -> Void
+    @State private var saveError: String?
+    let save: (DeviceAnnotation) -> String?
 
-    init(device: NetworkDevice, save: @escaping (DeviceAnnotation) -> Void) {
+    init(device: NetworkDevice, save: @escaping (DeviceAnnotation) -> String?) {
         var value = device.annotation
         if device.savedMatch == .address || device.savedMatch == .hostname { value.recognized = false }
         _annotation = State(initialValue: value)
@@ -40,11 +41,13 @@ struct DeviceInventoryEditor: View {
                         annotation.name = String(annotation.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120))
                         annotation.location = String(annotation.location.prefix(120))
                         annotation.notes = String(annotation.notes.prefix(2000))
-                        save(annotation)
-                        dismiss()
+                        if let error = save(annotation) { saveError = error } else { dismiss() }
                     }.accessibilityIdentifier("save-device")
                 }
             }
+            .alert("Could not save device", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("OK") { saveError = nil }
+            } message: { Text(saveError ?? "") }
         }
     }
 }
