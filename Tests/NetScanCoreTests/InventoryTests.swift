@@ -223,6 +223,26 @@ final class InventoryTests: XCTestCase {
     }
 
     @MainActor
+    func testBonjourPublishesBrowsesAndResolvesIPv4Service() async {
+        let name = "NetScan-Test-\(UUID().uuidString)"
+        let advertised = NetService(domain: "local.", type: "_http._tcp.", name: name, port: 32123)
+        let browser = BonjourDiscoveryService()
+        let resolved = expectation(description: "published service resolved through Bonjour")
+        resolved.assertForOverFulfill = false
+        browser.startBrowsing { observation in
+            if observation.name == name {
+                XCTAssertFalse(observation.address.isEmpty)
+                XCTAssertFalse(observation.hostname.isEmpty)
+                XCTAssertEqual(observation.port, 32123)
+                resolved.fulfill()
+            }
+        }
+        advertised.publish()
+        defer { advertised.stop(); browser.stopBrowsing() }
+        await fulfillment(of: [resolved], timeout: 8)
+    }
+
+    @MainActor
     func testCompletedDiscoverySurvivesCancelledEnrichment() {
         let model = DeviceListViewModel(observeNetwork: false)
         model.devices = [device()]
