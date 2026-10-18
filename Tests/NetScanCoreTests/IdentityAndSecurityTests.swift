@@ -4,6 +4,33 @@ import Foundation
 
 final class IdentityAndSecurityTests: XCTestCase {
     @MainActor
+    func testOlderAutomaticLookupCannotReplaceManualIdentity() async {
+        let model = DeviceListViewModel(observeNetwork: false)
+        model.devices = [NetworkDevice(ipAddress: "192.168.1.10", vendor: "Network Device")]
+        let started = expectation(description: "automatic lookup suspended")
+        var pending: CheckedContinuation<(vendor: String, deviceType: DeviceType, resolvedHostname: String?), Never>?
+        model.identityLookup = { _ in
+            await withCheckedContinuation { continuation in
+                pending = continuation
+                started.fulfill()
+            }
+        }
+        model.enrichVendorsOnline()
+        await fulfillment(of: [started], timeout: 2)
+        var updated = model.devices[0]
+        updated.hostname = "manual-host.local"
+        updated.vendor = "Manual Vendor"
+        updated.deviceType = .computer
+        model.updateDevice(updated, kind: .identity)
+        pending?.resume(returning: ("Old Vendor", .router, "old-host.local"))
+        await Task.yield()
+        XCTAssertEqual(model.devices[0].hostname, "manual-host.local")
+        XCTAssertEqual(model.devices[0].vendor, "Manual Vendor")
+        XCTAssertEqual(model.devices[0].deviceType, .computer)
+        model.stopDeviceUpdates()
+    }
+
+    @MainActor
     func testIdentityRetriesOnceAndPreservesHostnameWithoutMAC() async {
         let model = DeviceListViewModel(observeNetwork: false)
         model.devices = [NetworkDevice(ipAddress: "192.168.1.10", macAddress: "Unknown MAC", vendor: "Network Device")]

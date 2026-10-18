@@ -264,6 +264,10 @@ public class DeviceListViewModel: ObservableObject {
                     guard self?.devices.first(where: { $0.id == device.id })?.needsIdentityUpdate == true else { continue }
                     let result = await lookup(device)
                     guard !Task.isCancelled, self?.enrichmentID == run else { return }
+                    // A manual lookup may have supplied a newer identity while this request waited.
+                    guard let current = self?.devices.first(where: { $0.id == device.id }),
+                          current.hostname == device.hostname, current.vendor == device.vendor,
+                          current.deviceType == device.deviceType else { continue }
                     self?.applyIdentity(result, to: device.id)
                 }
             }
