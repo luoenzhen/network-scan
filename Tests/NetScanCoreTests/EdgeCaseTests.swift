@@ -162,11 +162,10 @@ final class EdgeCaseTests: XCTestCase {
     func testRealHTTPServerIdentifiesFromHeadersWhileBodyStalls() async throws {
         let listener = try NWListener(using: .tcp, on: .any)
         let ready = expectation(description: "HTTP listener ready")
-        let lock = NSLock()
-        var connections: [NWConnection] = []
+        let connections = HTTPServerConnections()
         listener.stateUpdateHandler = { if case .ready = $0 { ready.fulfill() } }
         listener.newConnectionHandler = { connection in
-            lock.withLock { connections.append(connection) }
+            connections.add(connection)
             connection.start(queue: .global())
             connection.receive(minimumIncompleteLength: 1, maximumLength: 2048) { _, _, _, _ in
                 let headers = "HTTP/1.1 200 OK\r\nServer: Synology\r\nContent-Type: text/plain\r\nContent-Length: 1024\r\nConnection: keep-alive\r\n\r\n"
@@ -176,7 +175,7 @@ final class EdgeCaseTests: XCTestCase {
         listener.start(queue: .global())
         defer {
             listener.cancel()
-            lock.withLock { connections }.forEach { $0.cancel() }
+            connections.close()
         }
         await fulfillment(of: [ready], timeout: 2)
         let port = try XCTUnwrap(listener.port)
@@ -259,6 +258,17 @@ final class EdgeCaseTests: XCTestCase {
         XCTAssertEqual(monitor.currentDownloadKbps, 0)
     }
 
+}
+
+private final class HTTPServerConnections: @unchecked Sendable {
+    private let lock = NSLock()
+    private var connections: [NWConnection] = []
+
+    func add(_ connection: NWConnection) { lock.withLock { connections.append(connection) } }
+    func close() {
+        let snapshot = lock.withLock { connections }
+        snapshot.forEach { $0.cancel() }
+    }
 }
 
 private final class HTTPProbeProtocol: URLProtocol {
