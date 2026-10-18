@@ -56,11 +56,23 @@ final class DeviceDetailUITests: XCTestCase {
         app.buttons["export-report"].tap()
         let preview = app.staticTexts["report-preview"]
         XCTAssertTrue(preview.waitForExistence(timeout: 5))
-        XCTAssertFalse(preview.label.contains("GoodWe"))
-        XCTAssertFalse(preview.label.contains("Garage"))
-        XCTAssertFalse(preview.label.contains("127.0.0.1"))
-        app.switches["redact-report"].tap()
-        XCTAssertTrue(preview.label.contains("GoodWe Inverter"))
-        XCTAssertTrue(preview.label.contains("Garage"))
+        func previewText() -> String { preview.label + " " + (preview.value as? String ?? "") }
+        XCTAssertTrue(previewText().contains("NetScan network report"), "The preview must expose the actual report text")
+        XCTAssertFalse(previewText().contains("GoodWe"))
+        XCTAssertFalse(previewText().contains("Garage"))
+        XCTAssertFalse(previewText().contains("127.0.0.1"))
+        let privacy = app.switches["redact-report"]
+        privacy.tap()
+        let updated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            previewText().contains("GoodWe Inverter") && previewText().contains("Garage")
+        }, object: preview)
+        let result = XCTWaiter.wait(for: [updated], timeout: 5)
+        if result != .completed {
+            print("REPORT SWITCH: \(privacy.debugDescription)")
+            print("REPORT PREVIEW: \(preview.debugDescription)")
+            print("REPORT VALUE: \(preview.value as? String ?? "nil")")
+            print("REPORT LABEL: \(preview.label)")
+        }
+        XCTAssertEqual(result, .completed)
     }
 }
