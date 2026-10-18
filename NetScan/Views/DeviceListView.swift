@@ -19,6 +19,16 @@ public struct DeviceListView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                HStack {
+                    Button { showingHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+                        .accessibilityIdentifier("scan-history")
+                    Spacer()
+                    Button { showingReport = true } label: { Label("Export Report", systemImage: "square.and.arrow.up") }
+                        .accessibilityIdentifier("export-report")
+                }
+                .font(.subheadline)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
                 if let message = viewModel.storageMessage {
                     Text(message).font(.caption).foregroundColor(.orange).padding()
                 }
@@ -173,14 +183,6 @@ public struct DeviceListView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button("Scan History") { showingHistory = true }
-                        Button("Export Report") { showingReport = true }
-                    } label: {
-                        Image(systemName: "ellipsis.circle").accessibilityLabel("History and reports")
-                    }.accessibilityIdentifier("inventory-options")
-                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     if viewModel.isLANConnected && !viewModel.devices.isEmpty {
                         Menu {
