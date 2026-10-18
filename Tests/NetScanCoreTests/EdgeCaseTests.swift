@@ -167,7 +167,7 @@ final class EdgeCaseTests: XCTestCase {
         listener.newConnectionHandler = { connection in
             connections.add(connection)
             connection.start(queue: .global())
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 2048) { data, _, _, error in
+            connection.receive(minimumIncompleteLength: 6, maximumLength: 2048) { data, _, _, error in
                 XCTAssertNil(error)
                 XCTAssertTrue(String(data: data ?? Data(), encoding: .utf8)?.hasPrefix("HEAD /") == true)
                 let headers = "HTTP/1.1 200 OK\r\nServer: Synology\r\nContent-Type: text/plain\r\nContent-Length: 1024\r\nConnection: keep-alive\r\n\r\n"

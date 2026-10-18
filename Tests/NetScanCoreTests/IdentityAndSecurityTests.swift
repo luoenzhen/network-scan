@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+import Combine
 @testable import NetScanCore
 
 final class IdentityAndSecurityTests: XCTestCase {
@@ -38,8 +39,11 @@ final class IdentityAndSecurityTests: XCTestCase {
         updated.vendor = "Manual Vendor"
         updated.deviceType = .computer
         model.updateDevice(updated, kind: .identity)
+        let finished = expectation(description: "automatic result processed")
+        let observation = model.$isUpdatingIdentities.filter { !$0 }.first().sink { _ in finished.fulfill() }
+        defer { observation.cancel() }
         lock.withLock { pending }?.resume(returning: ("Old Vendor", .router, "old-host.local"))
-        await Task.yield()
+        await fulfillment(of: [finished], timeout: 2)
         XCTAssertEqual(model.devices[0].hostname, "manual-host.local")
         XCTAssertEqual(model.devices[0].vendor, "Manual Vendor")
         XCTAssertEqual(model.devices[0].deviceType, .computer)
