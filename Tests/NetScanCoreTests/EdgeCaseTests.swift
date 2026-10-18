@@ -173,16 +173,15 @@ final class EdgeCaseTests: XCTestCase {
     func testHTTPRedirectDoesNotContactOrIdentifyAnotherHost() async throws {
         let source = try NWListener(using: .tcp, on: .any)
         let target = try NWListener(using: .tcp, on: .any)
-        let ready = expectation(description: "redirect listeners ready")
-        ready.expectedFulfillmentCount = 2
+        let ready = expectation(description: "redirect target ready")
+        let sourceReady = expectation(description: "redirect source ready")
         let contacted = expectation(description: "redirect destination must not be contacted")
         contacted.isInverted = true
         let connections = HTTPServerConnections()
-        source.stateUpdateHandler = { if case .ready = $0 { ready.fulfill() } }
+        source.stateUpdateHandler = { if case .ready = $0 { sourceReady.fulfill() } }
         target.stateUpdateHandler = { if case .ready = $0 { ready.fulfill() } }
         target.newConnectionHandler = { connection in contacted.fulfill(); connection.cancel() }
         target.start(queue: .global())
-        source.start(queue: .global())
         defer { source.cancel(); target.cancel(); connections.close() }
         await fulfillment(of: [ready], timeout: 2)
         let destinationPort = try XCTUnwrap(target.port).rawValue
@@ -194,6 +193,8 @@ final class EdgeCaseTests: XCTestCase {
                 connection.send(content: Data(headers.utf8), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in })
             }
         }
+        source.start(queue: .global())
+        await fulfillment(of: [sourceReady], timeout: 2)
         let result = await OUIVendorDatabase.probeHTTPIdentity(ip: "127.0.0.1:\(try XCTUnwrap(source.port).rawValue)", configuration: .ephemeral)
         XCTAssertNil(result)
         await fulfillment(of: [contacted], timeout: 0.2)
