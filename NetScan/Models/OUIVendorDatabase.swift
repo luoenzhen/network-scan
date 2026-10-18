@@ -1207,87 +1207,149 @@ public struct OUIVendorDatabase {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 1.5
         config.timeoutIntervalForResource = 1.5
-        let session = URLSession(configuration: config)
-        return await probeHTTPIdentity(ip: ip, session: session)
+        return await probeHTTPIdentity(ip: ip, configuration: config)
     }
 
-    static func probeHTTPIdentity(ip: String, session: URLSession) async -> (vendor: String, deviceType: DeviceType)? {
-        defer { session.invalidateAndCancel() }
+    static func probeHTTPIdentity(ip: String, configuration: URLSessionConfiguration) async -> (vendor: String, deviceType: DeviceType)? {
         guard !Task.isCancelled, let url = URL(string: "http://\(ip)/") else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 1.5
         request.setValue("NetScan-iOS/1.0", forHTTPHeaderField: "User-Agent")
-        do {
-            let (bytes, response) = try await session.bytes(for: request)
-            if let httpRes = response as? HTTPURLResponse {
-                // 1. Inspect Server Header
-                if let server = httpRes.value(forHTTPHeaderField: "Server") {
-                    let s = server.lowercased()
-                    if s.contains("tp-link") || s.contains("archer") { return ("TP-Link Technologies", .router) }
-                    if s.contains("netgear") { return ("NETGEAR", .router) }
-                    if s.contains("asus") { return ("ASUS", .router) }
-                    if s.contains("synology") || s.contains("dsm") { return ("Synology Inc.", .computer) }
-                    if s.contains("qnap") { return ("QNAP Systems", .computer) }
-                    if s.contains("hp ") || s.contains("hewlett-packard") { return ("HP (Hewlett-Packard)", .printer) }
-                    if s.contains("epson") { return ("Epson", .printer) }
-                    if s.contains("canon") { return ("Canon", .printer) }
-                    if s.contains("brother") { return ("Brother Industries", .printer) }
-                    if s.contains("tasmota") { return ("Tasmota Smart Device", .smartHome) }
-                    if s.contains("esphome") { return ("ESPHome Device", .smartHome) }
-                    if s.contains("hue") { return ("Philips Hue", .smartHome) }
-                    if s.contains("sonos") { return ("Sonos", .smartHome) }
-                    if s.contains("roku") { return ("Roku Inc.", .tv) }
+        let probe = HTTPIdentityProbe()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { probe.start(request: request, configuration: configuration, continuation: $0) }
+        } onCancel: {
+            probe.finish(nil)
+        }
+    }
+
+    private static func parseHTTPIdentity(response httpRes: HTTPURLResponse, data prefixData: Data) -> (vendor: String, deviceType: DeviceType)? {
+        // 1. Inspect Server Header
+        if let server = httpRes.value(forHTTPHeaderField: "Server") {
+            let s = server.lowercased()
+            if s.contains("tp-link") || s.contains("archer") { return ("TP-Link Technologies", .router) }
+            if s.contains("netgear") { return ("NETGEAR", .router) }
+            if s.contains("asus") { return ("ASUS", .router) }
+            if s.contains("synology") || s.contains("dsm") { return ("Synology Inc.", .computer) }
+            if s.contains("qnap") { return ("QNAP Systems", .computer) }
+            if s.contains("hp ") || s.contains("hewlett-packard") { return ("HP (Hewlett-Packard)", .printer) }
+            if s.contains("epson") { return ("Epson", .printer) }
+            if s.contains("canon") { return ("Canon", .printer) }
+            if s.contains("brother") { return ("Brother Industries", .printer) }
+            if s.contains("tasmota") { return ("Tasmota Smart Device", .smartHome) }
+            if s.contains("esphome") { return ("ESPHome Device", .smartHome) }
+            if s.contains("hue") { return ("Philips Hue", .smartHome) }
+            if s.contains("sonos") { return ("Sonos", .smartHome) }
+            if s.contains("roku") { return ("Roku Inc.", .tv) }
+        }
+
+        // 2. Inspect HTML <title> tag in the initial chunk
+        if let html = String(data: prefixData, encoding: .utf8) ?? String(data: prefixData, encoding: .ascii) {
+            let lower = html.lowercased()
+            if let titleRange = lower.range(of: "<title"),
+               let closeRange = lower.range(of: "</title>", range: titleRange.upperBound..<lower.endIndex) {
+                let title = String(lower[titleRange.lowerBound..<closeRange.upperBound])
+                if title.contains("raspberry") || title.contains("octoprint") || title.contains("pi-hole") {
+                    return ("Raspberry Pi Foundation", .computer)
                 }
-                
-                // 2. Inspect HTML <title> tag in the initial chunk
-                var prefixData = Data()
-                for try await byte in bytes {
-                    prefixData.append(byte)
-                    if prefixData.count == 2048 { break }
+                if title.contains("tp-link") || title.contains("archer") {
+                    return ("TP-Link Technologies", .router)
                 }
-                if let html = String(data: prefixData, encoding: .utf8) ?? String(data: prefixData, encoding: .ascii) {
-                    let lower = html.lowercased()
-                    if let titleRange = lower.range(of: "<title"),
-                       let closeRange = lower.range(of: "</title>", range: titleRange.upperBound..<lower.endIndex) {
-                        let title = String(lower[titleRange.lowerBound..<closeRange.upperBound])
-                        if title.contains("raspberry") || title.contains("octoprint") || title.contains("pi-hole") {
-                            return ("Raspberry Pi Foundation", .computer)
-                        }
-                        if title.contains("tp-link") || title.contains("archer") {
-                            return ("TP-Link Technologies", .router)
-                        }
-                        if title.contains("netgear") {
-                            return ("NETGEAR", .router)
-                        }
-                        if title.contains("asus") || title.contains("rt-") {
-                            return ("ASUS", .router)
-                        }
-                        if title.contains("synology") || title.contains("diskstation") {
-                            return ("Synology Inc.", .computer)
-                        }
-                        if title.contains("laserjet") || title.contains("officejet") || title.contains("hp ") {
-                            return ("HP (Hewlett-Packard)", .printer)
-                        }
-                        if title.contains("pixma") || title.contains("canon") {
-                            return ("Canon", .printer)
-                        }
-                        if title.contains("ecotank") || title.contains("epson") {
-                            return ("Epson", .printer)
-                        }
-                        if title.contains("openwrt") || title.contains("luci") {
-                            return ("OpenWrt Router", .router)
-                        }
-                        if title.contains("home assistant") {
-                            return ("Home Assistant Hub", .smartHome)
-                        }
-                    }
+                if title.contains("netgear") {
+                    return ("NETGEAR", .router)
+                }
+                if title.contains("asus") || title.contains("rt-") {
+                    return ("ASUS", .router)
+                }
+                if title.contains("synology") || title.contains("diskstation") {
+                    return ("Synology Inc.", .computer)
+                }
+                if title.contains("laserjet") || title.contains("officejet") || title.contains("hp ") {
+                    return ("HP (Hewlett-Packard)", .printer)
+                }
+                if title.contains("pixma") || title.contains("canon") {
+                    return ("Canon", .printer)
+                }
+                if title.contains("ecotank") || title.contains("epson") {
+                    return ("Epson", .printer)
+                }
+                if title.contains("openwrt") || title.contains("luci") {
+                    return ("OpenWrt Router", .router)
+                }
+                if title.contains("home assistant") {
+                    return ("Home Assistant Hub", .smartHome)
                 }
             }
-        } catch {
-            // Non-HTTP endpoint or port closed
         }
-        
         return nil
+    }
+
+    private final class HTTPIdentityProbe: NSObject, URLSessionDataDelegate {
+        private let lock = NSLock()
+        private var finished = false
+        private var continuation: CheckedContinuation<(vendor: String, deviceType: DeviceType)?, Never>?
+        private var session: URLSession?
+        private var response: HTTPURLResponse?
+        private var prefix = Data()
+
+        func start(request: URLRequest, configuration: URLSessionConfiguration,
+                   continuation: CheckedContinuation<(vendor: String, deviceType: DeviceType)?, Never>) {
+            lock.lock()
+            guard !finished else {
+                lock.unlock()
+                continuation.resume(returning: nil)
+                return
+            }
+            self.continuation = continuation
+            let queue = OperationQueue()
+            queue.maxConcurrentOperationCount = 1
+            let session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
+            self.session = session
+            let task = session.dataTask(with: request)
+            lock.unlock()
+            task.resume()
+        }
+
+        func finish(_ result: (vendor: String, deviceType: DeviceType)?) {
+            lock.lock()
+            guard !finished else { lock.unlock(); return }
+            finished = true
+            let completion = continuation
+            continuation = nil
+            let client = session
+            session = nil
+            lock.unlock()
+            client?.invalidateAndCancel()
+            completion?.resume(returning: result)
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+            guard let http = response as? HTTPURLResponse else {
+                completionHandler(.cancel)
+                finish(nil)
+                return
+            }
+            self.response = http
+            if let match = OUIVendorDatabase.parseHTTPIdentity(response: http, data: Data()) {
+                completionHandler(.cancel)
+                finish(match)
+            } else {
+                completionHandler(.allow)
+            }
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            prefix.append(data.prefix(max(0, 2048 - prefix.count)))
+            guard let response = response else { return }
+            let match = OUIVendorDatabase.parseHTTPIdentity(response: response, data: prefix)
+            if match != nil || prefix.count == 2048 { finish(match) }
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            let match = error == nil ? response.flatMap { OUIVendorDatabase.parseHTTPIdentity(response: $0, data: prefix) } : nil
+            finish(match)
+        }
     }
     
     // MARK: - Asynchronous Identification (With Online Internet Search & LAN Fallbacks)
