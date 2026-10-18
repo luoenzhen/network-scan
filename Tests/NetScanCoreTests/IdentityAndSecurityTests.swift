@@ -3,6 +3,21 @@ import Foundation
 @testable import NetScanCore
 
 final class IdentityAndSecurityTests: XCTestCase {
+    func testKnownManufacturerStillResolvesMissingHostname() async {
+        let result = await OUIVendorDatabase.identifyDeviceAsync(
+            ipAddress: "192.168.1.10", macAddress: "B8:27:EB:00:00:01", hostname: "192.168.1.10",
+            reverseDNS: { _ in "office-pi.local" })
+        XCTAssertEqual(result.vendor, "Raspberry Pi Foundation")
+        XCTAssertEqual(result.deviceType, .computer)
+        XCTAssertEqual(result.resolvedHostname, "office-pi.local")
+        let noName = await OUIVendorDatabase.identifyDeviceAsync(
+            ipAddress: "192.168.1.10", macAddress: "B8:27:EB:00:00:01", hostname: "Unknown",
+            reverseDNS: { _ in nil })
+        XCTAssertEqual(noName.vendor, "Raspberry Pi Foundation")
+        XCTAssertEqual(noName.deviceType, .computer)
+        XCTAssertNil(noName.resolvedHostname)
+    }
+
     @MainActor
     func testOlderAutomaticLookupCannotReplaceManualIdentity() async {
         let model = DeviceListViewModel(observeNetwork: false)

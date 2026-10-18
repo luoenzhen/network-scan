@@ -1366,14 +1366,28 @@ public struct OUIVendorDatabase {
         macAddress: String?,
         hostname: String
     ) async -> (vendor: String, deviceType: DeviceType, resolvedHostname: String?) {
+        await identifyDeviceAsync(ipAddress: ipAddress, macAddress: macAddress, hostname: hostname,
+                                  reverseDNS: { await resolveReverseDNS(ip: $0) })
+    }
+
+    static func identifyDeviceAsync(
+        ipAddress: String?, macAddress: String?, hostname: String,
+        reverseDNS: (String) async -> String?
+    ) async -> (vendor: String, deviceType: DeviceType, resolvedHostname: String?) {
         guard !Task.isCancelled else { return ("Network Device", .unknown, nil) }
         var discoveredHostname: String? = nil
+        if let ip = ipAddress, !ip.isEmpty,
+           hostname.isEmpty || hostname == ip || hostname.lowercased() == "unknown" {
+            discoveredHostname = await reverseDNS(ip)
+        }
+        guard !Task.isCancelled else { return ("Network Device", .unknown, nil) }
+        let hostname = discoveredHostname ?? hostname
         
         // 1. Fast local MAC lookup first
         if let mac = macAddress, !mac.isEmpty, !mac.contains("Unknown") && !mac.contains("Restricted") {
             let local = identifyDevice(macAddress: mac, hostname: hostname)
             if local.vendor != "Network Device" && local.vendor != "Unknown" && !local.vendor.isEmpty {
-                return (local.vendor, local.deviceType, nil)
+                return (local.vendor, local.deviceType, discoveredHostname)
             }
             
             // 2. Fallback: Search online MAC OUI database from the Internet
@@ -1384,7 +1398,7 @@ public struct OUIVendorDatabase {
             if clean.count >= 6 && clean.unicodeScalars.allSatisfy({ hexChars.contains($0) }) {
                 if let online = await lookupOnline(macAddress: mac) {
                     let type = inferDeviceType(hostname: hostname, vendor: online.vendor)
-                    return (online.vendor, type == .unknown ? online.defaultType : type, nil)
+                    return (online.vendor, type == .unknown ? online.defaultType : type, discoveredHostname)
                 }
             }
         }
@@ -1394,23 +1408,12 @@ public struct OUIVendorDatabase {
         if !hostname.isEmpty && hostname != ipAddress {
             let localByHost = identifyDevice(macAddress: nil, hostname: hostname)
             if localByHost.vendor != "Network Device" && localByHost.vendor != "Unknown" && !localByHost.vendor.isEmpty {
-                return (localByHost.vendor, localByHost.deviceType, nil)
+                return (localByHost.vendor, localByHost.deviceType, discoveredHostname)
             }
         }
         
         // 4. IP-based Active Discovery (Reverse DNS PTR, HTTP Banner, Gateway Check)
         if let ip = ipAddress, !ip.isEmpty {
-            // 4b. Reverse DNS PTR Query
-            if hostname.isEmpty || hostname == ip {
-                if let revHost = await resolveReverseDNS(ip: ip) {
-                    discoveredHostname = revHost
-                    let localByRev = identifyDevice(macAddress: nil, hostname: revHost)
-                    if localByRev.vendor != "Network Device" && localByRev.vendor != "Unknown" && !localByRev.vendor.isEmpty {
-                        return (localByRev.vendor, localByRev.deviceType, revHost)
-                    }
-                }
-            }
-            
             guard !Task.isCancelled else { return ("Network Device", .unknown, discoveredHostname) }
             // 4c. HTTP / Web Banner Probe
             if let httpMatch = await probeHTTPIdentity(ip: ip) {
