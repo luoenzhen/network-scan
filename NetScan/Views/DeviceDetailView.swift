@@ -14,6 +14,7 @@ public struct DeviceDetailView: View {
     @State private var wolAlertMessage: String?
     @State private var showWolAlert = false
     private let sourceDevice: NetworkDevice
+    @Environment(\.scenePhase) private var scenePhase
     
     public init(device: NetworkDevice, onUpdate: ((NetworkDevice) -> Void)? = nil) {
         sourceDevice = device
@@ -140,6 +141,7 @@ public struct DeviceDetailView: View {
                         }
                         .buttonStyle(BorderlessButtonStyle())
                         .disabled(viewModel.isSearchingOnlineVendor)
+                        .accessibilityIdentifier("find-vendor")
                     }
                 }
                 detailRow(label: "Device Category", value: viewModel.device.deviceType.rawValue)
@@ -265,7 +267,7 @@ public struct DeviceDetailView: View {
             // Device Specific Packets
             Section(header: Text("Sample Packets (\(viewModel.relatedPackets.count))"), footer: Text("Demonstration data; these packets are generated samples, not captured traffic.")) {
                 if viewModel.relatedPackets.isEmpty {
-                    Text("No captured packets associated with this IP yet.")
+                    Text("No sample packets associated with this IP yet.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 } else {
@@ -278,6 +280,7 @@ public struct DeviceDetailView: View {
             }
         }
         .listStyle(InsetGroupedListStyle())
+        .accessibilityIdentifier("device-detail")
         .navigationTitle(viewModel.device.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .alert(isPresented: $showWolAlert) {
@@ -295,6 +298,10 @@ public struct DeviceDetailView: View {
         }
         .onDisappear {
             viewModel.stopPacketObserving()
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .background { viewModel.stopPacketObserving() }
+            if phase == .active { viewModel.startPacketObserving() }
         }
     }
     

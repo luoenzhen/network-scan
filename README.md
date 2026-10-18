@@ -32,7 +32,7 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
 4. **Network Diagnostic Toolbox**
    - **Continuous TCP Probe**: Measures TCP port 80 response time (including explicit refusals), min/avg/max latency, and failed-probe percentage over the last 50 results. This is not ICMP ping.
    - **Multi-Threaded Port Scanner**: Audits open TCP ports (HTTP 80, HTTPS 443, SSH 22, DNS 53, SMB 445, RTSP 554, IPP 631, etc.) with service identification.
-   - **Wake-on-LAN (WOL)**: Broadcasts UDP magic packets across the subnet to wake sleeping computers.
+   - **Wake-on-LAN (WOL)**: Sends a UDP magic packet on the selected LAN interface. On iOS, broadcast delivery requires Local Network access and a signing profile with Apple's managed Multicast Networking entitlement; ordinary free AltStore signing does not provide it. Sending a packet does not confirm that a device woke up.
 
 5. **AltStore & Sideloading Ready**
    - Pre-configured `Info.plist` with required iOS network privacy keys (`NSLocalNetworkUsageDescription` and `NSBonjourServices`).
@@ -120,7 +120,9 @@ python3 Scripts/package_ipa.py /path/to/NetScan.app --output /path/to/NetScan.ip
 
 ## Verification
 
-Portable checks: `python3 Scripts/test_project.py`. On macOS, run `swift test` for networking/model regressions, then build the iOS app with Xcode. The GitHub Actions workflow runs these checks before archiving and packaging.
+Portable checks: `python3 Scripts/test_project.py`. On macOS, run `swift test`, `swift test -c release`, and `swift test --sanitize=thread --scratch-path .build/tsan` for networking/model regressions. Run `bash Scripts/run_ui_tests.sh` to test the real device-detail navigation and vendor lookup in an installed iOS simulator. The UI fixture is enabled only in Debug builds with the `NETSCAN_UI_TESTING=1` launch environment; CI also checks that it is absent from the Release executable. The GitHub Actions workflow runs these checks before archiving and packaging.
+
+Wake-on-LAN uses the BSD UDP socket API with `SO_BROADCAST` and binds to the selected interface. Apple documents why broadcast requires this API and the managed entitlement in [TN3151](https://developer.apple.com/documentation/technotes/tn3151-choosing-the-right-networking-api) and [TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy). After Apple approves the capability for your App ID, configure `com.apple.developer.networking.multicast` in the app's signing entitlements and provisioning profile. The repository does not enable this managed entitlement by default, so normal builds remain usable for unicast diagnostics with ordinary signing.
 
 Device smoke test after installing a fresh build:
 

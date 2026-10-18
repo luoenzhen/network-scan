@@ -26,7 +26,16 @@ jobs:
       - name: Run Regression Tests
         run: |
           python3 Scripts/test_project.py
+          plutil -lint NetScan/NetScan.xcodeproj/project.pbxproj
           swift test
+          swift test -c release
+
+      - name: Check Thread Safety
+        run: swift test --sanitize=thread --scratch-path .build/tsan
+
+      - name: Test Device Detail in iOS Simulator
+        timeout-minutes: 15
+        run: bash Scripts/run_ui_tests.sh
 
       - name: Archive iOS App
         run: |
@@ -42,6 +51,11 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
+          if strings build/NetScan.xcarchive/Products/Applications/NetScan.app/NetScan | grep NETSCAN_UI_TESTING > /dev/null; then
+            echo "UI test fixture must not be present in the Release executable."
+            exit 1
+          fi
+
       - name: Package Payload into IPA
         run: |
           python3 Scripts/package_ipa.py build/NetScan.xcarchive/Products/Applications/NetScan.app --output build/NetScan.ipa
@@ -52,3 +66,11 @@ jobs:
           name: NetScan-ipa
           path: build/NetScan.ipa
           if-no-files-found: error
+
+      - name: Upload UI Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetScan-ui-test-results
+          path: build/UITestResults-*.xcresult
+          if-no-files-found: ignore

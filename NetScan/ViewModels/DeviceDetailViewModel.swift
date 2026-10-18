@@ -70,6 +70,11 @@ public class DeviceDetailViewModel: ObservableObject {
     public func updateLiveDevice(_ updated: NetworkDevice) {
         guard updated.id == device.id else { return }
         device = updated
+        if !isScanningPorts {
+            openPorts = Set(updated.openPorts).sorted().map {
+                PortScanResult(port: $0, serviceName: KnownPorts.service(for: $0), isOpen: true)
+            }
+        }
     }
     
     public func runPortScan() {
@@ -127,9 +132,13 @@ public class DeviceDetailViewModel: ObservableObject {
     }
     
     public func sendWakeOnLAN(completion: @escaping (Bool, String) -> Void) {
-        let broadcast = NetworkInterfaceService.shared.getCurrentInterface().broadcastIP
-        let targetBroadcast = broadcast.isEmpty ? "255.255.255.255" : broadcast
-        WakeOnLANService.shared.sendWakePacket(macAddress: device.macAddress, broadcastIP: targetBroadcast) { success, message in
+        let interface = NetworkInterfaceService.shared.getCurrentInterface()
+        guard interface.isLAN, !interface.broadcastIP.isEmpty else {
+            completion(false, "Connect to a Wi-Fi or Ethernet LAN before sending Wake-on-LAN.")
+            return
+        }
+        WakeOnLANService.shared.sendWakePacket(macAddress: device.macAddress, broadcastIP: interface.broadcastIP,
+                                             interfaceName: interface.interfaceName) { success, message in
             DispatchQueue.main.async { completion(success, message) }
         }
     }

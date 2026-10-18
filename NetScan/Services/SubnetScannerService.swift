@@ -45,19 +45,18 @@ public class SubnetScannerService {
         onDeviceFound: @escaping (NetworkDevice) -> Void,
         onCompletion: @escaping ([NetworkDevice]) -> Void
     ) {
-        guard interface.isLAN else {
-            DispatchQueue.main.async { onCompletion([]) }
-            return
-        }
-        
         let scan = ScanCancellation()
         scanLock.lock()
         currentScan?.cancel()
         currentScan = scan
         scanLock.unlock()
+        guard interface.isLAN else {
+            DispatchQueue.main.async { if !scan.isCancelled { onCompletion([]) } }
+            return
+        }
         let defaults = UserDefaults.standard
         let timeout = min(max(defaults.object(forKey: "scanTimeout") as? Double ?? 0.4, 0.1), 1.5)
-        let concurrency = min(max(defaults.object(forKey: "maxConcurrentProbes") as? Int ?? 8, 4), 32)
+        let concurrency = min(max(defaults.object(forKey: "maxConcurrentProbes") as? Int ?? 16, 4), 32)
         
         // Dispatch entire scanning process to background queue so the UI thread NEVER blocks!
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -107,19 +106,12 @@ public class SubnetScannerService {
             var lastReportedPercent = -1
             
             let reportProgress: (Double) -> Void = { progress in
-                let percent = Int(progress * 100)
-                var shouldDispatch = false
-                lock.lock()
-                if percent != lastReportedPercent {
+                DispatchQueue.main.async {
+                    guard !scan.isCancelled else { return }
+                    let percent = Int(progress * 100)
+                    guard percent > lastReportedPercent else { return }
                     lastReportedPercent = percent
-                    shouldDispatch = true
-                }
-                lock.unlock()
-                
-                if shouldDispatch {
-                    DispatchQueue.main.async {
-                        if !scan.isCancelled { onProgress(progress) }
-                    }
+                    onProgress(progress)
                 }
             }
             

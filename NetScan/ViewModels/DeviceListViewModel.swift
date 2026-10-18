@@ -42,6 +42,17 @@ public class DeviceListViewModel: ObservableObject {
     
     public init() {
         OUIVendorDatabase.loadDatabaseIfNeeded()
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["NETSCAN_UI_TESTING"] == "1" {
+            isLANConnected = true
+            currentSSID = "UI Test Network"
+            devices = [NetworkDevice(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                                     ipAddress: "127.0.0.1", macAddress: "B8:27:EB:00:00:01",
+                                     hostname: "Test Network Device", vendor: "Network Device")]
+            didAutoScan = true
+            return
+        }
+        #endif
         
         let initialInterface = NetworkInterfaceService.shared.getCurrentInterface()
         self.isLANConnected = initialInterface.isLAN

@@ -14,6 +14,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         // Prevent kernel SIGPIPE signals from terminating the app when sockets close or reset
         signal(SIGPIPE, SIG_IGN)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["NETSCAN_UI_TESTING"] == "1" { return true }
+        #endif
         
         // Initialize background network monitoring service
         TrafficMonitorService.shared.startMonitoring()

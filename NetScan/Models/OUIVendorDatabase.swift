@@ -981,6 +981,7 @@ public struct OUIVendorDatabase {
     /// Searches online MAC vendor databases (api.maclookup.app & api.macvendors.com)
     /// to fetch real-time manufacturer information when local databases do not contain the prefix.
     public static func lookupOnline(macAddress: String) async -> (vendor: String, defaultType: DeviceType)? {
+        guard !Task.isCancelled else { return nil }
         let clean = macAddress.uppercased().replacingOccurrences(of: ":", with: "")
                                            .replacingOccurrences(of: "-", with: "")
                                            .replacingOccurrences(of: ".", with: "")
@@ -991,12 +992,9 @@ public struct OUIVendorDatabase {
         guard prefix.unicodeScalars.allSatisfy({ hexChars.contains($0) }) else { return nil }
         
         // Check cache
-        lock.lock()
-        if let cached = onlineCache[prefix] {
-            lock.unlock()
+        if let cached = lock.withLock({ onlineCache[prefix] }) {
             return cached
         }
-        lock.unlock()
         
         // 1. Primary Service: api.maclookup.app (Structured JSON, synced with IEEE)
         if let url = URL(string: "https://api.maclookup.app/v2/macs/\(prefix)") {
@@ -1015,13 +1013,12 @@ public struct OUIVendorDatabase {
                         let devType = inferDeviceType(hostname: "", vendor: cleanedCompany)
                         let result = (cleanedCompany, devType)
                         
-                        lock.lock()
-                        onlineCache[prefix] = result
-                        lock.unlock()
+                        lock.withLock { onlineCache[prefix] = result }
                         return result
                     }
                 }
             } catch {
+                guard !Task.isCancelled else { return nil }
                 // Continue to secondary fallback
             }
         }
@@ -1045,9 +1042,7 @@ public struct OUIVendorDatabase {
                     let devType = inferDeviceType(hostname: "", vendor: vendorStr)
                     let result = (vendorStr, devType)
                     
-                    lock.lock()
-                    onlineCache[prefix] = result
-                    lock.unlock()
+                    lock.withLock { onlineCache[prefix] = result }
                     return result
                 }
             } catch {
@@ -1207,19 +1202,21 @@ public struct OUIVendorDatabase {
     
     /// Probes HTTP server banner and title on local IP (port 80)
     public static func probeHTTPIdentity(ip: String) async -> (vendor: String, deviceType: DeviceType)? {
-        guard let url = URL(string: "http://\(ip)/") else { return nil }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 1.5
-        request.setValue("NetScan-iOS/1.0", forHTTPHeaderField: "User-Agent")
-        
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 1.5
         config.timeoutIntervalForResource = 1.5
         let session = URLSession(configuration: config)
+        return await probeHTTPIdentity(ip: ip, session: session)
+    }
+
+    static func probeHTTPIdentity(ip: String, session: URLSession) async -> (vendor: String, deviceType: DeviceType)? {
         defer { session.invalidateAndCancel() }
-        
+        guard !Task.isCancelled, let url = URL(string: "http://\(ip)/") else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 1.5
+        request.setValue("NetScan-iOS/1.0", forHTTPHeaderField: "User-Agent")
         do {
-            let (data, response) = try await session.data(for: request)
+            let (bytes, response) = try await session.bytes(for: request)
             if let httpRes = response as? HTTPURLResponse {
                 // 1. Inspect Server Header
                 if let server = httpRes.value(forHTTPHeaderField: "Server") {
@@ -1241,7 +1238,11 @@ public struct OUIVendorDatabase {
                 }
                 
                 // 2. Inspect HTML <title> tag in the initial chunk
-                let prefixData = data.prefix(2048)
+                var prefixData = Data()
+                for try await byte in bytes {
+                    prefixData.append(byte)
+                    if prefixData.count == 2048 { break }
+                }
                 if let html = String(data: prefixData, encoding: .utf8) ?? String(data: prefixData, encoding: .ascii) {
                     let lower = html.lowercased()
                     if let titleRange = lower.range(of: "<title"),
@@ -1294,6 +1295,7 @@ public struct OUIVendorDatabase {
         macAddress: String?,
         hostname: String
     ) async -> (vendor: String, deviceType: DeviceType, resolvedHostname: String?) {
+        guard !Task.isCancelled else { return ("Network Device", .unknown, nil) }
         var discoveredHostname: String? = nil
         
         // 1. Fast local MAC lookup first
@@ -1316,6 +1318,7 @@ public struct OUIVendorDatabase {
             }
         }
         
+        guard !Task.isCancelled else { return ("Network Device", .unknown, nil) }
         // 3. Hostname-based detection if present and not just numeric IP
         if !hostname.isEmpty && hostname != ipAddress {
             let localByHost = identifyDevice(macAddress: nil, hostname: hostname)
@@ -1337,6 +1340,7 @@ public struct OUIVendorDatabase {
                 }
             }
             
+            guard !Task.isCancelled else { return ("Network Device", .unknown, discoveredHostname) }
             // 4c. HTTP / Web Banner Probe
             if let httpMatch = await probeHTTPIdentity(ip: ip) {
                 return (httpMatch.vendor, httpMatch.deviceType, discoveredHostname)

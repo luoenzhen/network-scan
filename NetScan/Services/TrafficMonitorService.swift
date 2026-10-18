@@ -26,6 +26,9 @@ public class TrafficMonitorService: ObservableObject {
     private var previousSample: (network: String, sent: UInt64, received: UInt64, time: Date)?
     
     public init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["NETSCAN_UI_TESTING"] == "1" { return }
+        #endif
         startMonitoring()
     }
     
@@ -42,23 +45,28 @@ public class TrafficMonitorService: ObservableObject {
         timer?.invalidate()
         timer = nil
         previousSample = nil
+        currentUploadKbps = 0
+        currentDownloadKbps = 0
     }
     
     private func tickMetrics() {
         let currentInterface = NetworkInterfaceService.shared.getCurrentInterface()
+        recordSample(interface: currentInterface, counters: Self.interfaceBytes(name: currentInterface.interfaceName), time: Date())
+    }
+
+    func recordSample(interface currentInterface: NetworkInterfaceInfo, counters: (sent: UInt64, received: UInt64)?, time now: Date) {
         guard currentInterface.isConnected else {
             currentUploadKbps = 0.0
             currentDownloadKbps = 0.0
             previousSample = nil
             return
         }
-        guard let counters = Self.interfaceBytes(name: currentInterface.interfaceName) else {
+        guard let counters = counters else {
             currentUploadKbps = 0
             currentDownloadKbps = 0
             previousSample = nil
             return
         }
-        let now = Date()
         let previous = previousSample
         previousSample = (currentInterface.networkIdentifier, counters.sent, counters.received, now)
         guard let previous = previous, previous.network == currentInterface.networkIdentifier,
@@ -114,7 +122,7 @@ public class TrafficMonitorService: ObservableObject {
         }
     }
 
-    private static func interfaceBytes(name: String) -> (sent: UInt64, received: UInt64)? {
+    static func interfaceBytes(name: String) -> (sent: UInt64, received: UInt64)? {
         var addresses: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&addresses) == 0 else { return nil }
         defer { freeifaddrs(addresses) }

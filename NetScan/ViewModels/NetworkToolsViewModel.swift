@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 
+@MainActor
 public class NetworkToolsViewModel: ObservableObject {
     // Ping Tool
     @Published public var pingTarget: String = "192.168.1.1"
@@ -36,9 +37,12 @@ public class NetworkToolsViewModel: ObservableObject {
 
     private let pingService = PingDiagnosticService()
     private let portScanner = PortScannerService()
+    private var interfaceCancellable: AnyCancellable?
+    private var lastNetworkID: String
     
     public init() {
         let iface = NetworkInterfaceService.shared.getCurrentInterface()
+        lastNetworkID = iface.networkIdentifier
         if iface.isLAN && !iface.gatewayIP.isEmpty {
             self.pingTarget = iface.gatewayIP
             self.portScanTarget = iface.gatewayIP
@@ -72,14 +76,29 @@ public class NetworkToolsViewModel: ObservableObject {
         pingService.$isRunning
             .receive(on: DispatchQueue.main)
             .assign(to: &$isPinging)
+        interfaceCancellable = NetworkInterfaceService.shared.$currentInterface
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] interface in
+                guard let self = self, self.lastNetworkID != interface.networkIdentifier else { return }
+                self.lastNetworkID = interface.networkIdentifier
+                self.stopDiagnostics()
+            }
     }
     
     public func togglePing() {
-        if isPinging {
+        if pingService.isRunning {
             pingService.stop()
         } else {
             pingService.startPinging(host: pingTarget)
         }
+        isPinging = pingService.isRunning
+    }
+
+    public func stopDiagnostics() {
+        pingService.stop()
+        portScanner.cancel()
+        isPinging = false
+        isScanningPorts = false
     }
     
     public func runPortScan() {
@@ -106,8 +125,14 @@ public class NetworkToolsViewModel: ObservableObject {
     
     public func sendWakeOnLAN() {
         let broadcast = NetworkInterfaceService.shared.getCurrentInterface().broadcastIP
-        let targetBroadcast = broadcast.isEmpty ? "255.255.255.255" : broadcast
-        WakeOnLANService.shared.sendWakePacket(macAddress: wolMacAddress, broadcastIP: targetBroadcast) { [weak self] success, msg in
+        let interface = NetworkInterfaceService.shared.getCurrentInterface()
+        guard interface.isLAN, !broadcast.isEmpty else {
+            wolSuccess = false
+            wolStatusMessage = "Connect to a Wi-Fi or Ethernet LAN before sending Wake-on-LAN."
+            return
+        }
+        WakeOnLANService.shared.sendWakePacket(macAddress: wolMacAddress, broadcastIP: broadcast,
+                                             interfaceName: interface.interfaceName) { [weak self] success, msg in
             DispatchQueue.main.async {
                 self?.wolSuccess = success
                 self?.wolStatusMessage = msg

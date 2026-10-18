@@ -21,6 +21,12 @@ public class PacketInspectorService: ObservableObject {
     private let maxBufferedPackets = 500
     
     public init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["NETSCAN_UI_TESTING"] == "1" {
+            isCapturing = false
+            return
+        }
+        #endif
         startCapture()
     }
     

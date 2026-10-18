@@ -7,9 +7,11 @@
 
 import SwiftUI
 
+@MainActor
 public struct NetworkToolsView: View {
     @StateObject private var viewModel = NetworkToolsViewModel()
     @State private var selectedTab = 0
+    @Environment(\.scenePhase) private var scenePhase
     
     public init() {}
     
@@ -35,6 +37,10 @@ public struct NetworkToolsView: View {
                 }
             }
             .navigationTitle("Network Tools")
+        }
+        .onDisappear { viewModel.stopDiagnostics() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .background { viewModel.stopDiagnostics() }
         }
     }
 }

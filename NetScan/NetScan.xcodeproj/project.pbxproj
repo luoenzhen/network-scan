@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DD0100012C00000100000001 /* DeviceDetailUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0100022C00000100000001 /* DeviceDetailUITests.swift */; };
 		AA0100012C00000100000001 /* NetScanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100012C00000100000001 /* NetScanApp.swift */; };
 		AA0100022C00000100000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100022C00000100000001 /* AppDelegate.swift */; };
 		AA0100032C00000100000001 /* NetworkDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0100032C00000100000001 /* NetworkDevice.swift */; };
@@ -47,7 +48,19 @@
 		AA0100282C00000100000001 /* oui.txt in Resources */ = {isa = PBXBuildFile; fileRef = BB0100282C00000100000001 /* oui.txt */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		DD0100092C00000100000001 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 110100002C00000100000001;
+			proxyType = 1;
+			remoteGlobalIDString = 770100002C00000100000001;
+			remoteInfo = NetScan;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		DD0100022C00000100000001 /* DeviceDetailUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailUITests.swift; sourceTree = "<group>"; };
+		DD0100042C00000100000001 /* NetScanUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = NetScanUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		990100002C00000100000001 /* NetScan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NetScan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0100012C00000100000001 /* NetScanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetScanApp.swift; sourceTree = "<group>"; };
 		BB0100022C00000100000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -91,6 +104,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		DD0100072C00000100000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		880100002C00000100000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -101,11 +115,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		DD0100032C00000100000001 /* NetScanUITests */ = {
+			isa = PBXGroup;
+			children = (DD0100022C00000100000001 /* DeviceDetailUITests.swift */);
+			path = ../Tests/NetScanUITests;
+			sourceTree = "<group>";
+		};
 		000100002C00000100000001 = {
 			isa = PBXGroup;
 			children = (
 				000100012C00000100000001 /* NetScan */,
 				000100082C00000100000001 /* Products */,
+				DD0100032C00000100000001 /* NetScanUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -206,6 +227,7 @@
 			isa = PBXGroup;
 			children = (
 				990100002C00000100000001 /* NetScan.app */,
+				DD0100042C00000100000001 /* NetScanUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -213,6 +235,17 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		DD0100052C00000100000001 /* NetScanUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD01000B2C00000100000001;
+			buildPhases = (DD0100062C00000100000001, DD0100072C00000100000001, DD0100082C00000100000001);
+			buildRules = ();
+			dependencies = (DD01000A2C00000100000001);
+			name = NetScanUITests;
+			productName = NetScanUITests;
+			productReference = DD0100042C00000100000001;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		770100002C00000100000001 /* NetScan */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 440100002C00000100000001 /* Build configuration list for PBXNativeTarget "NetScan" */;
@@ -239,6 +272,10 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					DD0100052C00000100000001 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = 770100002C00000100000001;
+					};
 					770100002C00000100000001 = {
 						CreatedOnToolsVersion = 15.0;
 					};
@@ -258,11 +295,13 @@
 			projectRoot = "";
 			targets = (
 				770100002C00000100000001 /* NetScan */,
+				DD0100052C00000100000001 /* NetScanUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		DD0100082C00000100000001 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		550100002C00000100000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -275,6 +314,12 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		DD0100062C00000100000001 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (DD0100012C00000100000001 /* DeviceDetailUITests.swift in Sources */);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		660100002C00000100000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -321,6 +366,32 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		DD01000C2C00000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.netscan.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NetScan;
+			};
+			name = Debug;
+		};
+		DD01000D2C00000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.netscan.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NetScan;
+			};
+			name = Release;
+		};
 		330100012C00000100000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -429,6 +500,12 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		DD01000B2C00000100000001 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (DD01000C2C00000100000001, DD01000D2C00000100000001);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		220100002C00000100000001 /* Build configuration list for PBXProject "NetScan" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -448,6 +525,14 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin PBXTargetDependency section */
+		DD01000A2C00000100000001 = {
+			isa = PBXTargetDependency;
+			target = 770100002C00000100000001;
+			targetProxy = DD0100092C00000100000001;
+		};
+/* End PBXTargetDependency section */
 
 	};
 	rootObject = 110100002C00000100000001 /* Project object */;

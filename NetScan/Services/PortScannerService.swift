@@ -24,6 +24,7 @@ public class PortScannerService {
         onProgress: @escaping (Double) -> Void,
         onCompletion: @escaping ([PortScanResult]) -> Void
     ) {
+        let target = targetIP.trimmingCharacters(in: .whitespacesAndNewlines)
         let scan = ScanCancellation()
         scanLock.lock()
         currentScan?.cancel()
@@ -34,7 +35,7 @@ public class PortScannerService {
             var results: [PortScanResult] = []
             let lock = NSLock()
             let group = DispatchGroup()
-            let validPorts = targetIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let validPorts = target.isEmpty
                 ? [] : Array(Set(ports.filter { (1...65535).contains($0) })).sorted()
             let total = Double(validPorts.count)
             var scanned = 0.0
@@ -52,7 +53,7 @@ public class PortScannerService {
                         return
                     }
                     
-                    self.checkPort(ip: targetIP, port: port) { isOpen in
+                    self.checkPort(ip: target, port: port) { isOpen in
                         lock.lock()
                         scanned += 1.0
                         let progress = scanned / total

@@ -134,6 +134,7 @@ public struct DeviceListView: View {
                                 NavigationLink(value: device.id) {
                                     DeviceRowView(device: device)
                                 }
+                                .accessibilityIdentifier("device-\(device.id.uuidString)")
                             }
                         }
                     }

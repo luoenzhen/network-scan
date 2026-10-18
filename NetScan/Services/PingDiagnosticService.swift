@@ -16,6 +16,7 @@ public struct PingResult: Identifiable {
     public let timestamp: Date
 }
 
+@MainActor
 public class PingDiagnosticService: ObservableObject {
     public static let shared = PingDiagnosticService()
     
@@ -56,7 +57,7 @@ public class PingDiagnosticService: ObservableObject {
         sendSingleProbe()
         
         pingTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
-            self?.sendSingleProbe()
+            Task { @MainActor [weak self] in self?.sendSingleProbe() }
         }
     }
     
@@ -73,6 +74,7 @@ public class PingDiagnosticService: ObservableObject {
     }
     
     private func sendSingleProbe() {
+        guard isRunning else { return }
         sequenceNumber += 1
         let seq = sequenceNumber
         let session = sessionID

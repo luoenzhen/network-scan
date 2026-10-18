@@ -34,6 +34,11 @@ public struct WakeOnLANView: View {
                 .cornerRadius(12)
             }
             .padding(.horizontal)
+
+            Text("On iOS, broadcast delivery requires Local Network access and Multicast Networking permission in the app's signing profile.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
             
             Button(action: {
                 viewModel.sendWakeOnLAN()
