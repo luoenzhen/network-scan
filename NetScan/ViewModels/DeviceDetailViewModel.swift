@@ -20,7 +20,7 @@ public class DeviceDetailViewModel: ObservableObject {
     @Published public var isSearchingOnlineVendor: Bool = false
     @Published public var searchStatusMessage: String? = nil
     
-    public var onDeviceUpdated: ((NetworkDevice) -> Void)?
+    public var onDeviceUpdated: ((NetworkDevice, DeviceUpdateKind) -> Void)?
     
     private var pingCancellable: AnyCancellable?
     private var packetCancellable: AnyCancellable?
@@ -29,7 +29,7 @@ public class DeviceDetailViewModel: ObservableObject {
     private var vendorTask: Task<Void, Never>?
     private var portScanID = UUID()
     
-    public init(device: NetworkDevice, onDeviceUpdated: ((NetworkDevice) -> Void)? = nil) {
+    public init(device: NetworkDevice, onDeviceUpdated: ((NetworkDevice, DeviceUpdateKind) -> Void)? = nil) {
         self.device = device
         self.onDeviceUpdated = onDeviceUpdated
         
@@ -62,6 +62,7 @@ public class DeviceDetailViewModel: ObservableObject {
         portScanner.cancel()
         portScanID = UUID()
         isScanningPorts = false
+        if device.serviceCheckState == .checking { device.serviceCheckState = .notChecked }
         vendorTask?.cancel()
         vendorTask = nil
         isSearchingOnlineVendor = false
@@ -80,6 +81,7 @@ public class DeviceDetailViewModel: ObservableObject {
     public func runPortScan() {
         guard !isScanningPorts else { return }
         isScanningPorts = true
+        device.serviceCheckState = .checking
         portScanProgress = 0.0
         openPorts.removeAll()
         portScanID = UUID()
@@ -107,7 +109,8 @@ public class DeviceDetailViewModel: ObservableObject {
                     self.openPorts = all
                     self.device.openPorts = all.map { $0.port }
                     self.device.services = all.map { $0.serviceName }
-                    self.onDeviceUpdated?(self.device)
+                    self.device.serviceCheckState = .checked
+                    self.onDeviceUpdated?(self.device, .ports)
                 }
             }
         )
@@ -182,7 +185,7 @@ public class DeviceDetailViewModel: ObservableObject {
             }
             
             if updated {
-                self.onDeviceUpdated?(self.device)
+                self.onDeviceUpdated?(self.device, .identity)
             }
         }
     }

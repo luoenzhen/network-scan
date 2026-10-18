@@ -81,13 +81,19 @@ public struct DeviceRowView: View {
                         .foregroundColor(.secondary)
                     
                     HStack(spacing: 4) {
-                        Text("MAC:")
+                        Text(device.identityAddressLabel)
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.secondary)
-                        Text(device.macAddress)
+                        Text(device.identityAddressValue)
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
                     }
+                }
+                let riskCount = device.securityFindings.filter(\.requiresReview).count
+                if riskCount > 0 {
+                    Label("\(riskCount) service risk\(riskCount == 1 ? "" : "s") to review", systemImage: "exclamationmark.shield")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
                 }
                 
                 // ROW 3: Network Traffic on the next next row (Download & Upload in KB/s)

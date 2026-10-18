@@ -150,6 +150,44 @@ final class EdgeCaseTests: XCTestCase {
         await fulfillment(of: [stopped], timeout: 2)
     }
 
+    func testHTTPIdentityDoesNotInspectTitleBeyondByteLimit() async {
+        let stopped = expectation(description: "oversized stream cancelled")
+        let body = Data((String(repeating: "x", count: 2048) + "<title>Raspberry Pi</title>").utf8)
+        HTTPProbeProtocol.configure(server: nil, body: body, stopped: { stopped.fulfill() })
+        let result = await OUIVendorDatabase.probeHTTPIdentity(ip: "127.0.0.1", configuration: configuration())
+        XCTAssertNil(result)
+        await fulfillment(of: [stopped], timeout: 2)
+    }
+
+    func testRealHTTPServerIdentifiesFromHeadersWhileBodyStalls() async throws {
+        let listener = try NWListener(using: .tcp, on: .any)
+        let ready = expectation(description: "HTTP listener ready")
+        let lock = NSLock()
+        var connections: [NWConnection] = []
+        listener.stateUpdateHandler = { if case .ready = $0 { ready.fulfill() } }
+        listener.newConnectionHandler = { connection in
+            lock.withLock { connections.append(connection) }
+            connection.start(queue: .global())
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 2048) { _, _, _, _ in
+                let headers = "HTTP/1.1 200 OK\r\nServer: Synology\r\nContent-Type: text/plain\r\nContent-Length: 1024\r\nConnection: keep-alive\r\n\r\n"
+                connection.send(content: Data(headers.utf8), completion: .contentProcessed { _ in })
+            }
+        }
+        listener.start(queue: .global())
+        defer {
+            listener.cancel()
+            lock.withLock { connections }.forEach { $0.cancel() }
+        }
+        await fulfillment(of: [ready], timeout: 2)
+        let port = try XCTUnwrap(listener.port)
+        let start = Date()
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForResource = 2
+        let result = await OUIVendorDatabase.probeHTTPIdentity(ip: "127.0.0.1:\(port.rawValue)", configuration: config)
+        XCTAssertEqual(result?.vendor, "Synology Inc.")
+        XCTAssertLessThan(Date().timeIntervalSince(start), 1)
+    }
+
     func testCancelledVendorSearchDoesNotStartHTTP() async {
         let request = expectation(description: "cancelled lookup must not request HTTP")
         request.isInverted = true
@@ -238,7 +276,8 @@ private final class HTTPProbeProtocol: URLProtocol {
         let snapshot = Self.lock.withLock { Self.fixture }
         Self.lock.withLock { stopped = snapshot.stopped }
         snapshot.started?()
-        let headers = snapshot.server.map { ["server": $0] } ?? [:]
+        var headers = ["Content-Type": "text/plain", "Content-Length": "1048576"]
+        if let server = snapshot.server { headers["server"] = server }
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         if !snapshot.body.isEmpty { client?.urlProtocol(self, didLoad: snapshot.body) }

@@ -15,6 +15,7 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
    - Respects the subnet mask. Large networks are limited to a 4096-address window containing this device.
    - Offers hostname and HTTP identity lookup, plus an embedded IEEE OUI database when a MAC is supplied. Bonjour browsing is available as a service but is not yet connected to device identity enrichment.
    - Categorizes devices automatically (Smartphones, Computers, Routers, Smart Home/IoT, Printers, Gaming consoles, Smart TVs).
+   - Automatically resolves unidentified devices after discovery, with one retry after 15 seconds. Hostnames remain visible when iOS hides the MAC address. Rescanning, changing networks, or entering the background cancels pending updates.
    - Distinguishes the default gateway router and the local iPhone.
 
 2. **Local Device Traffic Monitor (KB/second)**
@@ -30,6 +31,7 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
    - Filter by protocol, search by keyword or IP, and view JSON for copying. JSON records include `isSample` to identify generated packets.
 
 4. **Network Diagnostic Toolbox**
+   - **Device and Service Risk Checks**: After discovery, checks TCP ports 21, 23, 139, 445, and 3389 with at most two devices checked concurrently. Flags reachable FTP/Telnet and file-sharing/remote-desktop services for review, and shows unresolved identity as information. These observations do not prove malicious activity or unauthorized presence; packet examples are never used as evidence. The detail view distinguishes unchecked, checking, and checked services.
    - **Continuous TCP Probe**: Measures TCP port 80 response time (including explicit refusals), min/avg/max latency, and failed-probe percentage over the last 50 results. This is not ICMP ping.
    - **Multi-Threaded Port Scanner**: Audits open TCP ports (HTTP 80, HTTPS 443, SSH 22, DNS 53, SMB 445, RTSP 554, IPP 631, etc.) with service identification.
    - **Wake-on-LAN (WOL)**: Sends a UDP magic packet on the selected LAN interface. On iOS, broadcast delivery requires Local Network access and a signing profile with Apple's managed Multicast Networking entitlement; ordinary free AltStore signing does not provide it. Sending a packet does not confirm that a device woke up.

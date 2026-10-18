@@ -17,6 +17,15 @@ public struct DeviceListView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if viewModel.isUpdatingIdentities {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Updating unresolved device names and manufacturers…")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                }
                 // Scan Progress Banner
                 if viewModel.isScanning {
                     VStack(spacing: 4) {
@@ -150,8 +159,8 @@ public struct DeviceListView: View {
             .navigationTitle("Network Devices")
             .navigationDestination(for: UUID.self) { id in
                 if let device = viewModel.devices.first(where: { $0.id == id }) {
-                    DeviceDetailView(device: device, onUpdate: { updated in
-                        viewModel.updateDevice(updated)
+                    DeviceDetailView(device: device, onUpdate: { updated, kind in
+                        viewModel.updateDevice(updated, kind: kind)
                     })
                 } else {
                     Text("This device is no longer in the current scan. Return to Devices to scan again.")

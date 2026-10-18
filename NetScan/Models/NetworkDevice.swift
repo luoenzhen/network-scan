@@ -60,6 +60,7 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
     public var lastSeen: Date
     public var isLocalDevice: Bool
     public var isGateway: Bool
+    public var serviceCheckState: ServiceCheckState
     
     public init(
         id: UUID = UUID(),
@@ -79,7 +80,8 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
         firstDiscovered: Date = Date(),
         lastSeen: Date = Date(),
         isLocalDevice: Bool = false,
-        isGateway: Bool = false
+        isGateway: Bool = false,
+        serviceCheckState: ServiceCheckState = .notChecked
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -99,10 +101,11 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
         self.lastSeen = lastSeen
         self.isLocalDevice = isLocalDevice
         self.isGateway = isGateway
+        self.serviceCheckState = serviceCheckState
     }
     
     public var displayName: String {
-        if !hostname.isEmpty && hostname != ipAddress {
+        if hasResolvedHostname {
             return hostname
         }
         if isGateway {
@@ -117,6 +120,45 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
     public var formattedUpload: String {
         guard isLocalDevice else { return "Unavailable" }
         return String(format: "%.1f KB/s", uploadSpeedKbps)
+    }
+
+    public var hasKnownMACAddress: Bool {
+        let clean = macAddress.replacingOccurrences(of: ":", with: "").replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: ".", with: "")
+        return clean.count == 12 && clean.utf8.allSatisfy { (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }
+    }
+
+    public var hasResolvedHostname: Bool {
+        let name = hostname.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !name.isEmpty && name != ipAddress && name.lowercased() != "unknown"
+    }
+
+    public var needsIdentityUpdate: Bool {
+        guard !isLocalDevice else { return false }
+        return !hasResolvedHostname || ["", "unknown", "network device", "generic device"].contains(vendor.lowercased())
+    }
+
+    public var identityAddressLabel: String { hasKnownMACAddress ? "MAC:" : "Host:" }
+    public var identityAddressValue: String { hasKnownMACAddress ? macAddress : (hasResolvedHostname ? hostname : "Unresolved") }
+
+    public var securityFindings: [DeviceSecurityFinding] {
+        var findings: [DeviceSecurityFinding] = []
+        if !isLocalDevice && !hasResolvedHostname && ["", "unknown", "network device", "generic device"].contains(vendor.lowercased()) {
+            findings.append(DeviceSecurityFinding(id: "identity", title: "Identity unresolved", detail: "The device has not advertised a recognizable name or manufacturer. Missing MAC addresses are normal on iOS.", requiresReview: false))
+        }
+        if openPorts.contains(21) {
+            findings.append(DeviceSecurityFinding(id: "ftp", title: "FTP-associated port 21 reachable", detail: "TCP 21 is commonly used for FTP. If FTP is running, require TLS to protect credentials or disable it if unneeded.", requiresReview: true))
+        }
+        if openPorts.contains(23) {
+            findings.append(DeviceSecurityFinding(id: "telnet", title: "Telnet-associated port 23 reachable", detail: "TCP 23 is commonly used for Telnet, which transmits credentials and commands without encryption. Confirm the service and prefer SSH if applicable.", requiresReview: true))
+        }
+        if openPorts.contains(139) || openPorts.contains(445) {
+            findings.append(DeviceSecurityFinding(id: "smb", title: "File-sharing ports reachable", detail: "TCP 139/445 are commonly used for SMB/NetBIOS. Confirm the service, restrict sharing to intended users, and keep the device updated.", requiresReview: true))
+        }
+        if openPorts.contains(3389) {
+            findings.append(DeviceSecurityFinding(id: "rdp", title: "Remote-desktop port 3389 reachable", detail: "TCP 3389 is commonly used for RDP. Confirm the service and protect intended remote access with strong authentication.", requiresReview: true))
+        }
+        return findings
     }
     
     public var formattedDownload: String {
@@ -137,4 +179,22 @@ public struct NetworkDevice: Identifiable, Codable, Equatable {
             return "\(Int(total)) B"
         }
     }
+}
+
+public enum ServiceCheckState: String, Codable {
+    case notChecked = "Not checked"
+    case checking = "Checking selected services"
+    case checked = "Selected services checked"
+}
+
+public enum DeviceUpdateKind {
+    case identity
+    case ports
+}
+
+public struct DeviceSecurityFinding: Identifiable, Equatable {
+    public let id: String
+    public let title: String
+    public let detail: String
+    public let requiresReview: Bool
 }

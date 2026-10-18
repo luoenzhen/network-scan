@@ -16,7 +16,7 @@ public struct DeviceDetailView: View {
     private let sourceDevice: NetworkDevice
     @Environment(\.scenePhase) private var scenePhase
     
-    public init(device: NetworkDevice, onUpdate: ((NetworkDevice) -> Void)? = nil) {
+    public init(device: NetworkDevice, onUpdate: ((NetworkDevice, DeviceUpdateKind) -> Void)? = nil) {
         sourceDevice = device
         _viewModel = StateObject(wrappedValue: DeviceDetailViewModel(device: device, onDeviceUpdated: onUpdate))
     }
@@ -109,7 +109,7 @@ public struct DeviceDetailView: View {
             // Network Technical Specs
             Section(header: Text("Technical Details")) {
                 detailRow(label: "IP Address", value: viewModel.device.ipAddress)
-                detailRow(label: "MAC Address", value: viewModel.device.macAddress)
+                detailRow(label: "MAC Address", value: viewModel.device.hasKnownMACAddress ? viewModel.device.macAddress : "Unavailable on iOS")
                 detailRow(label: "Hostname", value: viewModel.device.hostname)
                 HStack {
                     Text("Hardware Vendor")
@@ -146,6 +146,26 @@ public struct DeviceDetailView: View {
                 }
                 detailRow(label: "Device Category", value: viewModel.device.deviceType.rawValue)
                 detailRow(label: "Round-Trip Latency", value: String(format: "%.1f ms", viewModel.device.latencyMs))
+            }
+            Section(header: Text("Security checks"), footer: Text("These are observable risk indicators, not proof of malicious behavior. Only TCP ports 21, 23, 139, 445, and 3389 are checked automatically; packet samples are not analyzed.")) {
+                Text(viewModel.device.serviceCheckState.rawValue)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                ForEach(viewModel.device.securityFindings) { finding in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(finding.title, systemImage: finding.requiresReview ? "exclamationmark.shield" : "info.circle")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(finding.requiresReview ? .orange : .secondary)
+                        Text(finding.detail)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if viewModel.device.serviceCheckState == .checked && !viewModel.device.securityFindings.contains(where: \.requiresReview) {
+                    Text("No flagged services detected in the checked ports.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
             // Open Port Discovery Section
