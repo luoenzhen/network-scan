@@ -154,6 +154,34 @@ final class RegressionTests: XCTestCase {
         wait(for: [settled], timeout: 2)
     }
 
+    func testRefusedPortIsAssessedBeforeTimeout() throws {
+        let ready = expectation(description: "loopback listener ready")
+        let listener = try NWListener(using: .tcp, on: .any)
+        listener.newConnectionHandler = { $0.cancel() }
+        listener.stateUpdateHandler = { if case .ready = $0 { ready.fulfill() } }
+        listener.start(queue: .main)
+        wait(for: [ready], timeout: 2)
+        let port = Int(try XCTUnwrap(listener.port).rawValue)
+        listener.cancel()
+        let closed = expectation(description: "listener closed")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { closed.fulfill() }
+        wait(for: [closed], timeout: 1)
+
+        let done = expectation(description: "refused port scan completes")
+        let scanner = PortScannerService()
+        let start = Date()
+        scanner.scanPorts(targetIP: "127.0.0.1", ports: [port], onPortFound: { _ in
+            XCTFail("A closed port cannot be open")
+        }, onProgress: { _ in }, onCompletion: { results in
+            XCTAssertTrue(results.isEmpty)
+            // A refusal is a definite answer, not an unanswered probe.
+            XCTAssertEqual(scanner.completedPorts, [port])
+            XCTAssertLessThan(Date().timeIntervalSince(start), 0.45)
+            done.fulfill()
+        })
+        wait(for: [done], timeout: 2)
+    }
+
     func testCancelledPortRunCannotDeliverIntoRestart() {
         let scanner = PortScannerService()
         let old = expectation(description: "cancelled run callbacks suppressed")

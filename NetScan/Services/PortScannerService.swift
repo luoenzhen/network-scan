@@ -127,13 +127,16 @@ public class PortScannerService {
                     connection.cancel()
                     completion(true, true)
                 }
-            case .failed(let error):
+            case .waiting(let error), .failed(let error):
+                // Refusals usually arrive as .waiting; other waiting errors run to the timeout.
+                let refused = error == .posix(.ECONNREFUSED)
+                if case .waiting = state, !refused { break }
                 if !responded {
                     responded = true
                     timeoutWork.cancel()
                     connection.stateUpdateHandler = nil
                     connection.cancel()
-                    completion(false, error == .posix(.ECONNREFUSED))
+                    completion(false, refused)
                 }
             default:
                 break
