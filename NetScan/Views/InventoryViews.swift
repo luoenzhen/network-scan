@@ -132,7 +132,7 @@ struct ScanHistoryView: View {
 }
 
 private struct NetworkReportDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.plainText] }
+    static var readableContentTypes: [UTType] { [.plainText, .commaSeparatedText, .json] }
     var text: String
     init(text: String) { self.text = text }
     init(configuration: ReadConfiguration) throws { text = String(decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self) }
@@ -144,13 +144,26 @@ struct NetworkReportView: View {
     let history: [ScanSnapshot]
     @Environment(\.dismiss) private var dismiss
     @State private var redacted = true
+    @State private var format: ExportFormat = .text
     @State private var exporting = false
     @State private var exportError: String?
     private let date = Date()
-    private var report: String { NetworkReport.text(devices: devices, history: history, redacted: redacted, date: date) }
+    private var report: String { InventoryExport.render(format, devices: devices, history: history, redacted: redacted, date: date) }
+    private var contentType: UTType {
+        switch format {
+        case .text: return .plainText
+        case .csv: return .commaSeparatedText
+        case .json: return .json
+        }
+    }
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
+                Picker("Format", selection: $format) {
+                    ForEach(ExportFormat.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .accessibilityIdentifier("report-format")
                 HStack {
                     Text("Hide identifying details")
                     Spacer()
@@ -176,7 +189,7 @@ struct NetworkReportView: View {
             .navigationTitle("Network Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .fileExporter(isPresented: $exporting, document: NetworkReportDocument(text: report), contentType: .plainText,
+            .fileExporter(isPresented: $exporting, document: NetworkReportDocument(text: report), contentType: contentType,
                           defaultFilename: "NetScan-\(date.formatted(.iso8601.year().month().day().dateSeparator(.dash)))") { result in
                 if case .failure(let error) = result { exportError = error.localizedDescription }
             }

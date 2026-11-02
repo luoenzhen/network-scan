@@ -56,7 +56,8 @@ public class SubnetScannerService {
         }
         let defaults = UserDefaults.standard
         let timeout = min(max(defaults.object(forKey: "scanTimeout") as? Double ?? 0.4, 0.1), 1.5)
-        let concurrency = min(max(defaults.object(forKey: "maxConcurrentProbes") as? Int ?? 16, 4), 32)
+        let requested = min(max(defaults.object(forKey: "maxConcurrentProbes") as? Int ?? 16, 4), 32)
+        let concurrency = min(requested, Self.maxDiscoverySockets / Self.discoveryPorts.count)
         
         // Dispatch entire scanning process to background queue so the UI thread NEVER blocks!
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -180,15 +181,20 @@ public class SubnetScannerService {
         scanLock.unlock()
     }
     
-    // All ports share one host timeout, with at most three sockets per host.
-    func probeHost(ip: String, timeout: TimeInterval, ports: [UInt16] = [80, 443, 22],
+    /// Web, SSH, SMB, alternate web and the iPhone/iPad sync service (62078).
+    static let discoveryPorts: [UInt16] = [80, 443, 22, 445, 8080, 62078]
+    /// Bounds sockets across concurrent host probes, well below the per-process descriptor limit.
+    static let maxDiscoverySockets = 128
+
+    // All ports share one host timeout, with at most six sockets per host.
+    func probeHost(ip: String, timeout: TimeInterval, ports: [UInt16] = SubnetScannerService.discoveryPorts,
                    completion: @escaping (NetworkDevice?) -> Void) {
         let start = CFAbsoluteTimeGetCurrent()
         var descriptors: [pollfd] = []
         var descriptorPorts: [UInt16] = []
         var live = false
         var openPort: Int?
-        let ports = Array(Set(ports.filter { $0 > 0 })).sorted().prefix(3)
+        let ports = Array(Set(ports.filter { $0 > 0 })).sorted().prefix(6)
         defer { descriptors.forEach { close($0.fd) } }
         for port in ports {
             let fd = socket(AF_INET, SOCK_STREAM, 0)

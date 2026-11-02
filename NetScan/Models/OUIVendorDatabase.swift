@@ -1410,11 +1410,13 @@ public struct OUIVendorDatabase {
 
     public static func identifyDeviceWithEvidence(ipAddress: String?, macAddress: String?, hostname: String) async -> DeviceIdentityResult {
         await identifyDeviceWithEvidence(ipAddress: ipAddress, macAddress: macAddress, hostname: hostname,
-                                         reverseDNS: { await resolveReverseDNS(ip: $0) })
+                                         reverseDNS: { await resolveReverseDNS(ip: $0) },
+                                         netbiosName: { await NetBIOSNameService.queryName(ip: $0) })
     }
 
     static func identifyDeviceWithEvidence(ipAddress: String?, macAddress: String?, hostname: String,
                                             reverseDNS: (String) async -> String?,
+                                            netbiosName: (String) async -> String? = { _ in nil },
                                             onlineLookup: (String) async -> (vendor: String, defaultType: DeviceType)? = { await lookupOnline(macAddress: $0) }) async -> DeviceIdentityResult {
         var evidence: [IdentityEvidence] = []
         func result(_ vendor: String, _ type: DeviceType, _ host: String?) -> DeviceIdentityResult {
@@ -1426,6 +1428,10 @@ public struct OUIVendorDatabase {
            hostname.isEmpty || hostname == ip || hostname.lowercased() == "unknown" {
             discoveredHostname = await reverseDNS(ip)
             if let host = discoveredHostname { evidence.append(IdentityEvidence(source: "Reverse DNS (self-reported name)", observation: host)) }
+            if discoveredHostname == nil, !Task.isCancelled, let name = await netbiosName(ip) {
+                discoveredHostname = name
+                evidence.append(IdentityEvidence(source: "NetBIOS name (self-reported)", observation: name))
+            }
         }
         guard !Task.isCancelled else { return result("Network Device", .unknown, nil) }
         let hostname = discoveredHostname ?? hostname

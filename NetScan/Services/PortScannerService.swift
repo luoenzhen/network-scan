@@ -21,7 +21,8 @@ public class PortScannerService {
     
     public func scanPorts(
         targetIP: String,
-        ports: [Int] = [21, 22, 23, 25, 53, 80, 110, 139, 143, 443, 445, 548, 554, 631, 8080, 8443, 9000, 3389, 5000, 5353, 7000, 8008, 9100],
+        ports: [Int] = KnownPorts.defaultScanPorts,
+        grabBanners: Bool = false,
         onPortFound: @escaping (PortScanResult) -> Void,
         onProgress: @escaping (Double) -> Void,
         onCompletion: @escaping ([PortScanResult]) -> Void
@@ -58,24 +59,33 @@ public class PortScannerService {
                     }
                     
                     self.checkPort(ip: target, port: port) { isOpen, determinate in
-                        lock.lock()
-                        if determinate { assessed.append(port) }
-                        scanned += 1.0
-                        let progress = scanned / total
-                        if isOpen {
-                            let res = PortScanResult(
-                                port: port,
-                                serviceName: KnownPorts.service(for: port),
-                                isOpen: true
-                            )
-                            results.append(res)
-                            DispatchQueue.main.async { if !scan.isCancelled { onPortFound(res) } }
-                        }
-                        lock.unlock()
+                        let record: (String?) -> Void = { banner in
+                            lock.lock()
+                            if determinate { assessed.append(port) }
+                            scanned += 1.0
+                            let progress = scanned / total
+                            if isOpen {
+                                let res = PortScanResult(
+                                    port: port,
+                                    serviceName: KnownPorts.service(for: port),
+                                    isOpen: true,
+                                    banner: banner
+                                )
+                                results.append(res)
+                                DispatchQueue.main.async { if !scan.isCancelled { onPortFound(res) } }
+                            }
+                            lock.unlock()
 
-                        DispatchQueue.main.async { if !scan.isCancelled { onProgress(progress) } }
-                        semaphore.signal()
-                        group.leave()
+                            DispatchQueue.main.async { if !scan.isCancelled { onProgress(progress) } }
+                            semaphore.signal()
+                            group.leave()
+                        }
+                        // The banner read keeps this port's slot, so at most eight sockets stay open.
+                        if isOpen && grabBanners && !scan.isCancelled {
+                            self.grabBanner(ip: target, port: port, completion: record)
+                        } else {
+                            record(nil)
+                        }
                     }
                 }
             }
@@ -144,5 +154,61 @@ public class PortScannerService {
         }
         
         connection.start(queue: queue)
+    }
+
+    /// Reads what the service volunteers (SSH, FTP, SMTP…) or, for web ports, the HEAD response's Server line.
+    private func grabBanner(ip: String, port: Int, timeout: TimeInterval = 1.0, completion: @escaping (String?) -> Void) {
+        guard let value = UInt16(exactly: port), let endpointPort = NWEndpoint.Port(rawValue: value) else {
+            completion(nil)
+            return
+        }
+        let isHTTP = KnownPorts.httpPorts.contains(port) && !KnownPorts.tlsPorts.contains(port)
+        let connection = NWConnection(host: NWEndpoint.Host(ip), port: endpointPort, using: .tcp)
+        var finished = false
+        let finish: (String?) -> Void = { banner in
+            guard !finished else { return }
+            finished = true
+            connection.stateUpdateHandler = nil
+            connection.cancel()
+            completion(banner)
+        }
+        queue.asyncAfter(deadline: .now() + timeout) { finish(nil) }
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                if isHTTP {
+                    let request = "HEAD / HTTP/1.0\r\nHost: \(ip)\r\nConnection: close\r\n\r\n"
+                    connection.send(content: Data(request.utf8), completion: .contentProcessed { _ in })
+                }
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { data, _, _, _ in
+                    finish(data.flatMap { PortScannerService.sanitizeBanner($0, isHTTP: isHTTP) })
+                }
+            case .failed, .waiting:
+                finish(nil)
+            default:
+                break
+            }
+        }
+        connection.start(queue: queue)
+    }
+
+    /// One printable line, at most 120 characters. HTTP responses report their Server header.
+    static func sanitizeBanner(_ data: Data, isHTTP: Bool) -> String? {
+        let text = String(decoding: data.prefix(1024), as: UTF8.self)
+        let lines = text.components(separatedBy: CharacterSet.newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+        let line: String?
+        if isHTTP {
+            line = lines.first { $0.lowercased().hasPrefix("server:") }.map { String($0.dropFirst(7)).trimmingCharacters(in: .whitespaces) }
+                ?? lines.first { $0.hasPrefix("HTTP/") }
+        } else {
+            line = lines.first { !$0.isEmpty }
+        }
+        guard let raw = line else { return nil }
+        var printable = ""
+        for scalar in raw.unicodeScalars where scalar.value >= 0x20 && scalar.value < 0x7F {
+            printable.unicodeScalars.append(scalar)
+        }
+        printable = printable.trimmingCharacters(in: .whitespaces)
+        return printable.isEmpty ? nil : String(printable.prefix(120))
     }
 }

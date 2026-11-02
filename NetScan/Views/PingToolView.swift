@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
+import Charts
 
+@MainActor
 public struct PingToolView: View {
     @ObservedObject var viewModel: NetworkToolsViewModel
     
@@ -28,7 +30,17 @@ public struct PingToolView: View {
                 .padding(10)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(10)
-                
+
+                TextField("Port", text: $viewModel.pingPort)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 64)
+                    .padding(10)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(10)
+                    .disabled(viewModel.isPinging)
+                    .accessibilityLabel("TCP port")
+
                 Button(action: {
                     viewModel.togglePing()
                 }) {
@@ -42,7 +54,11 @@ public struct PingToolView: View {
                 }
             }
             .padding(.horizontal)
-            
+
+            if let error = viewModel.pingError {
+                Text(error).font(.caption).foregroundColor(.red).padding(.horizontal)
+            }
+
             // Statistics Summary Cards
             HStack(spacing: 10) {
                 statCard(title: "AVG RTT", value: String(format: "%.1f ms", viewModel.avgRtt), color: .blue)
@@ -51,10 +67,14 @@ public struct PingToolView: View {
                 statCard(title: "LOSS", value: String(format: "%.0f%%", viewModel.packetLoss), color: viewModel.packetLoss > 0 ? .red : .secondary)
             }
             .padding(.horizontal)
-            
+
+            latencyChart
+                .frame(height: 120)
+                .padding(.horizontal)
+
             // Ping Log History
             List {
-                Section(header: Text("TCP Port 80 Probe Log (\(viewModel.pingResults.count))"), footer: Text("Measures TCP response time, including explicit connection refusals. This is not an ICMP ping test.")) {
+                Section(header: Text("TCP Port \(String(viewModel.probedPort)) Probe Log (\(viewModel.pingResults.count))"), footer: Text("Measures TCP response time, including explicit connection refusals. This is not an ICMP ping test.")) {
                     ForEach(viewModel.pingResults.reversed()) { res in
                         HStack {
                             Circle()
@@ -81,6 +101,32 @@ public struct PingToolView: View {
         }
     }
     
+    /// Response time per probe over the last 50; failed probes are marked on the baseline in red.
+    private var latencyChart: some View {
+        Chart {
+            ForEach(viewModel.pingResults.filter(\.success)) { result in
+                LineMark(x: .value("Probe", result.seq), y: .value("Response (ms)", result.rttMs))
+                    .foregroundStyle(Color.blue)
+                    .interpolationMethod(.monotone)
+            }
+            ForEach(viewModel.pingResults.filter { !$0.success }) { result in
+                PointMark(x: .value("Probe", result.seq), y: .value("Response (ms)", 0.0))
+                    .foregroundStyle(Color.red)
+                    .symbolSize(20)
+            }
+        }
+        .chartYAxisLabel("ms")
+        .chartXAxis(.hidden)
+        .overlay {
+            if viewModel.pingResults.isEmpty {
+                Text("Response times appear here while probing.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+        }
+        .accessibilityLabel("Response time chart")
+        .accessibilityValue(String(format: "Average %.1f milliseconds, %.0f percent failed", viewModel.avgRtt, viewModel.packetLoss))
+    }
+
     private func statCard(title: String, value: String, color: Color) -> some View {
         VStack(spacing: 4) {
             Text(title)

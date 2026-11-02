@@ -11,6 +11,7 @@ public struct MainTabView: View {
     @StateObject private var dashboardVM = DashboardViewModel()
     @StateObject private var deviceListVM = DeviceListViewModel()
     @StateObject private var packetStreamVM = PacketStreamViewModel()
+    @ObservedObject private var shortcuts = ShortcutRouter.shared
     @State private var selectedTab = 0
     @Environment(\.scenePhase) private var scenePhase
     
@@ -52,7 +53,23 @@ public struct MainTabView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .background {
                 deviceListVM.stopScan()
+                deviceListVM.pauseWatch()
+            } else if phase == .active {
+                deviceListVM.resumeWatch()
+                handleShortcut(shortcuts.pendingAction)
             }
+        }
+        .onReceive(shortcuts.$pendingAction) { handleShortcut($0) }
+        .onAppear { deviceListVM.resumeWatch() }
+    }
+
+    private func handleShortcut(_ action: ShortcutAction?) {
+        guard let action = action else { return }
+        shortcuts.pendingAction = nil
+        switch action {
+        case .scanNetwork:
+            selectedTab = 1
+            if !deviceListVM.isScanning { deviceListVM.startScan() }
         }
     }
 }

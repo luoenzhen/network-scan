@@ -30,6 +30,7 @@ public class PingDiagnosticService: ObservableObject {
     private var pingTimer: Timer?
     private var sequenceNumber = 0
     private var targetHost: String = ""
+    private var targetPort: NWEndpoint.Port = 80
     private var sessionID = UUID()
     private var connections: [Int: NWConnection] = [:]
     
@@ -43,10 +44,11 @@ public class PingDiagnosticService: ObservableObject {
         }
     }
     
-    public func startPinging(host: String) {
+    public func startPinging(host: String, port: UInt16 = 80) {
         stop()
         targetHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !targetHost.isEmpty else { return }
+        guard !targetHost.isEmpty, let endpointPort = NWEndpoint.Port(rawValue: port), port > 0 else { return }
+        targetPort = endpointPort
         sequenceNumber = 0
         history.removeAll()
         minRtt = 0
@@ -82,7 +84,7 @@ public class PingDiagnosticService: ObservableObject {
         
         let endpointHost = NWEndpoint.Host(targetHost)
         // Probe via lightweight TCP connect (SYN -> SYN/ACK)
-        let connection = NWConnection(host: endpointHost, port: 80, using: .tcp)
+        let connection = NWConnection(host: endpointHost, port: targetPort, using: .tcp)
         connections[seq] = connection
         var finished = false
 

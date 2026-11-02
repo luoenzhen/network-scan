@@ -49,6 +49,16 @@
 		EE0100012C00000100000001 /* DeviceInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0100012C00000100000001 /* DeviceInventory.swift */; };
 		EE0100022C00000100000001 /* NetworkReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0100022C00000100000001 /* NetworkReport.swift */; };
 		EE0100032C00000100000001 /* InventoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0100032C00000100000001 /* InventoryViews.swift */; };
+		FF0100012C00000100000001 /* NetScanShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100012C00000100000001 /* NetScanShortcuts.swift */; };
+		FF0100022C00000100000001 /* InventoryExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100022C00000100000001 /* InventoryExport.swift */; };
+		FF0100032C00000100000001 /* NetworkTroubleshooterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100032C00000100000001 /* NetworkTroubleshooterService.swift */; };
+		FF0100042C00000100000001 /* DNSLookupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100042C00000100000001 /* DNSLookupService.swift */; };
+		FF0100052C00000100000001 /* TLSInspectorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100052C00000100000001 /* TLSInspectorService.swift */; };
+		FF0100062C00000100000001 /* NetBIOSNameService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100062C00000100000001 /* NetBIOSNameService.swift */; };
+		FF0100072C00000100000001 /* NewDeviceNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100072C00000100000001 /* NewDeviceNotifier.swift */; };
+		FF0100082C00000100000001 /* TroubleshooterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100082C00000100000001 /* TroubleshooterViewModel.swift */; };
+		FF0100092C00000100000001 /* TroubleshooterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0100092C00000100000001 /* TroubleshooterView.swift */; };
+		FF01000A2C00000100000001 /* DNSLookupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE01000A2C00000100000001 /* DNSLookupView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -107,6 +117,16 @@
 		EF0100012C00000100000001 /* DeviceInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceInventory.swift; sourceTree = "<group>"; };
 		EF0100022C00000100000001 /* NetworkReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkReport.swift; sourceTree = "<group>"; };
 		EF0100032C00000100000001 /* InventoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryViews.swift; sourceTree = "<group>"; };
+		FE0100012C00000100000001 /* NetScanShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetScanShortcuts.swift; sourceTree = "<group>"; };
+		FE0100022C00000100000001 /* InventoryExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryExport.swift; sourceTree = "<group>"; };
+		FE0100032C00000100000001 /* NetworkTroubleshooterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkTroubleshooterService.swift; sourceTree = "<group>"; };
+		FE0100042C00000100000001 /* DNSLookupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSLookupService.swift; sourceTree = "<group>"; };
+		FE0100052C00000100000001 /* TLSInspectorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TLSInspectorService.swift; sourceTree = "<group>"; };
+		FE0100062C00000100000001 /* NetBIOSNameService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetBIOSNameService.swift; sourceTree = "<group>"; };
+		FE0100072C00000100000001 /* NewDeviceNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewDeviceNotifier.swift; sourceTree = "<group>"; };
+		FE0100082C00000100000001 /* TroubleshooterViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TroubleshooterViewModel.swift; sourceTree = "<group>"; };
+		FE0100092C00000100000001 /* TroubleshooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TroubleshooterView.swift; sourceTree = "<group>"; };
+		FE01000A2C00000100000001 /* DNSLookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSLookupView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +171,7 @@
 		000100022C00000100000001 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				FE0100012C00000100000001 /* NetScanShortcuts.swift */,
 				BB0100012C00000100000001 /* NetScanApp.swift */,
 				BB0100022C00000100000001 /* AppDelegate.swift */,
 			);
@@ -160,6 +181,7 @@
 		000100032C00000100000001 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				FE0100022C00000100000001 /* InventoryExport.swift */,
 				BB0100032C00000100000001 /* NetworkDevice.swift */,
 				EF0100022C00000100000001 /* NetworkReport.swift */,
 				EF0100012C00000100000001 /* DeviceInventory.swift */,
@@ -175,6 +197,11 @@
 		000100042C00000100000001 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				FE0100072C00000100000001 /* NewDeviceNotifier.swift */,
+				FE0100062C00000100000001 /* NetBIOSNameService.swift */,
+				FE0100052C00000100000001 /* TLSInspectorService.swift */,
+				FE0100042C00000100000001 /* DNSLookupService.swift */,
+				FE0100032C00000100000001 /* NetworkTroubleshooterService.swift */,
 				BB0100092C00000100000001 /* NetworkInterfaceService.swift */,
 				BB01000A2C00000100000001 /* SubnetScannerService.swift */,
 				BB01000B2C00000100000001 /* BonjourDiscoveryService.swift */,
@@ -190,6 +217,7 @@
 		000100052C00000100000001 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				FE0100082C00000100000001 /* TroubleshooterViewModel.swift */,
 				BB0100112C00000100000001 /* DashboardViewModel.swift */,
 				BB0100122C00000100000001 /* DeviceListViewModel.swift */,
 				BB0100132C00000100000001 /* DeviceDetailViewModel.swift */,
@@ -202,6 +230,8 @@
 		000100062C00000100000001 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				FE01000A2C00000100000001 /* DNSLookupView.swift */,
+				FE0100092C00000100000001 /* TroubleshooterView.swift */,
 				BB0100162C00000100000001 /* MainTabView.swift */,
 				BB0100172C00000100000001 /* DashboardView.swift */,
 				BB0100182C00000100000001 /* NetworkSpeedGaugeView.swift */,
@@ -333,6 +363,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF01000A2C00000100000001 /* DNSLookupView.swift in Sources */,
+				FF0100092C00000100000001 /* TroubleshooterView.swift in Sources */,
+				FF0100082C00000100000001 /* TroubleshooterViewModel.swift in Sources */,
+				FF0100072C00000100000001 /* NewDeviceNotifier.swift in Sources */,
+				FF0100062C00000100000001 /* NetBIOSNameService.swift in Sources */,
+				FF0100052C00000100000001 /* TLSInspectorService.swift in Sources */,
+				FF0100042C00000100000001 /* DNSLookupService.swift in Sources */,
+				FF0100032C00000100000001 /* NetworkTroubleshooterService.swift in Sources */,
+				FF0100022C00000100000001 /* InventoryExport.swift in Sources */,
+				FF0100012C00000100000001 /* NetScanShortcuts.swift in Sources */,
 				AA0100012C00000100000001 /* NetScanApp.swift in Sources */,
 				AA0100022C00000100000001 /* AppDelegate.swift in Sources */,
 				AA0100032C00000100000001 /* NetworkDevice.swift in Sources */,

@@ -30,8 +30,19 @@ public class DeviceListViewModel: ObservableObject {
     @Published public var currentSSID: String = ""
     @Published public private(set) var isUpdatingIdentities = false
     @Published public private(set) var history: [ScanSnapshot] = []
+    @Published public private(set) var watchModeEnabled = UserDefaults.standard.bool(forKey: "watchModeEnabled")
+    @Published public private(set) var nextWatchScan: Date?
+    @Published public private(set) var latestNewDeviceAlert: String?
+    @Published public private(set) var networkProfileNote: String?
     public private(set) var networkScope = ""
     public private(set) var networkIsCertain = false
+    private var networkNameAvailable = false
+    private var watchWork: DispatchWorkItem?
+    private var watchScansHeld = false
+    var notifier: NewDeviceNotifying = NewDeviceNotifier.shared
+    var watchInterval: TimeInterval {
+        min(max(UserDefaults.standard.object(forKey: "watchInterval") as? Double ?? 300, 60), 3600)
+    }
     private let inventory: DeviceInventory
     private let bonjour = BonjourDiscoveryService()
     private var discoveryFinish: DispatchWorkItem?
@@ -58,6 +69,7 @@ public class DeviceListViewModel: ObservableObject {
 
     deinit {
         discoveryFinish?.cancel()
+        watchWork?.cancel()
         let browser = bonjour
         if Thread.isMainThread { browser.stopBrowsing() } else { DispatchQueue.main.async { browser.stopBrowsing() } }
         trafficTimer?.invalidate()
@@ -225,6 +237,9 @@ public class DeviceListViewModel: ObservableObject {
         isScanning = true
         scanProgress = 0.0
         scanID = UUID()
+        watchWork?.cancel()
+        watchWork = nil
+        nextWatchScan = nil
         stopDeviceUpdates()
         configureInventory(interface)
         let run = scanID
@@ -264,9 +279,94 @@ public class DeviceListViewModel: ObservableObject {
     
     private func configureInventory(_ interface: NetworkInterfaceInfo) {
         networkScope = DeviceInventory.networkScope(interface)
+        networkNameAvailable = interface.networkNameIsAvailable
         networkIsCertain = interface.networkNameIsAvailable
+        networkProfileNote = nil
         history = inventory.allHistory
     }
+
+    /// Without a network name, a router that identifies itself as it did on the first scan of this
+    /// profile confirms the network. Same-model routers can still look alike, so this is not proof.
+    func refreshNetworkFingerprint() {
+        guard !networkNameAvailable else { return }
+        let identity = DeviceInventory.routerIdentity(devices.first { $0.isGateway })
+        guard !identity.isEmpty else {
+            networkProfileNote = "iOS hides the network name and the router did not identify itself, so saved labels need verification."
+            return
+        }
+        let firstSighting = !inventory.hasRouterIdentity(network: networkScope)
+        let certain = inventory.confirmRouter(identity, network: networkScope)
+        if certain {
+            networkProfileNote = "Network recognized by its router's identity because iOS hides the network name. Routers of the same model can look alike."
+        } else if firstSighting {
+            networkProfileNote = "Router identity saved for this network. Later scans use it to confirm saved labels."
+        } else {
+            networkProfileNote = "The router identifies itself differently from the first scan of this network profile. Saved labels need verification."
+        }
+        guard certain != networkIsCertain else { return }
+        networkIsCertain = certain
+        associateDevices()
+        syncHistory()
+    }
+
+    // MARK: - Watch mode
+
+    /// Devices whose saved record never appeared in an earlier scan of this network. The first scan is a baseline.
+    static func newDeviceAlerts(devices: [NetworkDevice], history: [ScanSnapshot]) -> [NetworkDevice] {
+        guard !history.isEmpty else { return [] }
+        let known = Set(history.flatMap { $0.devices.map(\.id) })
+        return devices.filter { device in
+            guard !device.isLocalDevice, !device.annotation.recognized else { return false }
+            return !known.contains(device.inventoryID ?? device.id)
+        }
+    }
+
+    public func setWatchMode(_ enabled: Bool) {
+        watchModeEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "watchModeEnabled")
+        guard enabled else {
+            pauseWatch()
+            return
+        }
+        notifier.requestAuthorization { _ in }
+        if !isScanning && isLANConnected { startScan() } else { scheduleWatchScan() }
+    }
+
+    /// Watch mode only runs while NetScan is open; iOS does not allow LAN scans in the background.
+    public func pauseWatch() {
+        watchWork?.cancel()
+        watchWork = nil
+        nextWatchScan = nil
+    }
+
+    public func resumeWatch() {
+        guard watchModeEnabled, watchWork == nil, !isScanning else { return }
+        scheduleWatchScan()
+    }
+
+    func scheduleWatchScan() {
+        watchWork?.cancel()
+        watchWork = nil
+        nextWatchScan = nil
+        guard watchModeEnabled else { return }
+        let interval = watchInterval
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.watchWork = nil
+            self.nextWatchScan = nil
+            if self.canStartWatchScan { self.startScan() } else { self.scheduleWatchScan() }
+        }
+        watchWork = work
+        nextWatchScan = Date().addingTimeInterval(interval)
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: work)
+    }
+
+    /// A rescan replaces every device, so scheduled scans wait while a device or report is open.
+    public func holdWatchScans(_ held: Bool) { watchScansHeld = held }
+
+    var canStartWatchScan: Bool { isLANConnected && !isScanning && !watchScansHeld }
+
+    public func dismissNewDeviceAlert() { latestNewDeviceAlert = nil }
 
     func associateDevices() {
         let hosts = devices.filter(\.hasResolvedHostname).map { $0.hostname.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". ")) }
@@ -321,6 +421,14 @@ public class DeviceListViewModel: ObservableObject {
         historyRunID = run
         identityCoverage = .pending
         serviceCoverage = .pending
+        if watchModeEnabled {
+            let alerts = Self.newDeviceAlerts(devices: devices, history: inventory.history(network: networkScope))
+            if let message = NewDeviceNotifier.message(for: alerts) {
+                latestNewDeviceAlert = message.title + ": " + message.body
+                notifier.notify(newDevices: alerts)
+            }
+            scheduleWatchScan()
+        }
         inventory.recordScan(id: run, network: networkScope, devices: devices)
         history = inventory.allHistory
         startTrafficPolling()
@@ -407,6 +515,7 @@ public class DeviceListViewModel: ObservableObject {
             self?.identityTask = nil
             self?.identityCoverage = .completed
             self?.syncHistory()
+            self?.refreshNetworkFingerprint()
         }
     }
 
@@ -490,10 +599,12 @@ public class DeviceListViewModel: ObservableObject {
         stopDeviceUpdates()
         scanID = UUID()
         SubnetScannerService.shared.cancelScan()
+        let wasScanning = isScanning
         isScanning = false
         if isLANConnected && !devices.isEmpty {
             startTrafficPolling()
         }
+        if wasScanning { resumeWatch() }
     }
     
     private func startTrafficPolling() {

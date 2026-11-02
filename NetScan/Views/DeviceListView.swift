@@ -29,6 +29,41 @@ public struct DeviceListView: View {
                 .font(.subheadline)
                 .padding(.horizontal)
                 .padding(.vertical, 8)
+                if viewModel.isLANConnected {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Toggle(isOn: Binding(get: { viewModel.watchModeEnabled }, set: { viewModel.setWatchMode($0) })) {
+                            Label("Watch for new devices", systemImage: "eye")
+                        }
+                        .accessibilityIdentifier("watch-mode")
+                        if let next = viewModel.nextWatchScan {
+                            (Text("Next scan ") + Text(next, style: .relative))
+                                .font(.caption2).foregroundColor(.secondary)
+                        } else if viewModel.watchModeEnabled {
+                            Text("Rescans while NetScan is open and alerts you to devices not seen before.")
+                                .font(.caption2).foregroundColor(.secondary)
+                        }
+                    }
+                    .font(.subheadline)
+                    .padding(.horizontal)
+                    .padding(.bottom, 6)
+                }
+                if let alert = viewModel.latestNewDeviceAlert {
+                    HStack(alignment: .top) {
+                        Image(systemName: "exclamationmark.bubble.fill").foregroundColor(.orange)
+                        Text(verbatim: alert).font(.caption)
+                        Spacer()
+                        Button { viewModel.dismissNewDeviceAlert() } label: { Image(systemName: "xmark") }
+                            .accessibilityLabel("Dismiss alert")
+                    }
+                    .padding(10)
+                    .background(Color.orange.opacity(0.12))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                }
+                if let note = viewModel.networkProfileNote {
+                    Text(verbatim: note).font(.caption2).foregroundColor(.secondary)
+                        .padding(.horizontal).padding(.vertical, 4)
+                }
                 if let message = viewModel.storageMessage {
                     Text(message).font(.caption).foregroundColor(.orange).padding()
                 }
@@ -177,6 +212,8 @@ public struct DeviceListView: View {
                     DeviceDetailView(device: device, onUpdate: { updated, kind in
                         viewModel.updateDevice(updated, kind: kind)
                     }, storageError: { viewModel.storageMessage })
+                    .onAppear { viewModel.holdWatchScans(true) }
+                    .onDisappear { viewModel.holdWatchScans(false) }
                 } else {
                     Text("This device is no longer in the current scan. Return to Devices to scan again.")
                         .padding()
@@ -220,7 +257,11 @@ public struct DeviceListView: View {
                 }
             }
             .sheet(isPresented: $showingHistory) { ScanHistoryView(model: viewModel) }
-            .sheet(isPresented: $showingReport) { NetworkReportView(devices: viewModel.devices, history: viewModel.history) }
+            .sheet(isPresented: $showingReport) {
+                NetworkReportView(devices: viewModel.devices, history: viewModel.history)
+                    .onAppear { viewModel.holdWatchScans(true) }
+                    .onDisappear { viewModel.holdWatchScans(false) }
+            }
         }
     }
     

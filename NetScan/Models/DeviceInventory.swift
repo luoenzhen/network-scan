@@ -85,6 +85,8 @@ public final class DeviceInventory {
         var version = 1
         var records: [String: [Record]] = [:]
         var scans: [ScanSnapshot] = []
+        /// Router identity per network profile; optional so older files still decode.
+        var routers: [String: String]?
     }
     private var state = State()
     private let file: URL?
@@ -124,6 +126,36 @@ public final class DeviceInventory {
         let bssid = ["", "00:11:22:33:44:55", "02:00:00:00:00:00"].contains(interface.bssid.lowercased()) ? "" : interface.bssid.lowercased()
         return [interface.ssid, bssid, "\(network)/\(interface.cidrPrefix)", interface.gatewayIP].joined(separator: "|")
     }
+
+    /// What the router says about itself: name, manufacturer estimate and web server header.
+    /// Bonjour adverts are left out because a bounded browse can miss some of them.
+    /// Empty when the router has advertised nothing distinctive.
+    public static func routerIdentity(_ gateway: NetworkDevice?) -> String {
+        guard let gateway = gateway else { return "" }
+        var parts: [String] = []
+        if gateway.hasResolvedHostname { parts.append("host:" + host(gateway)) }
+        if !["", "unknown", "network device", "generic device"].contains(gateway.vendor.lowercased()) {
+            parts.append("vendor:" + gateway.vendor.lowercased())
+        }
+        parts += gateway.evidence.filter { $0.source == "HTTP Server header (self-reported)" }.map { "server:" + $0.observation }
+        return Array(Set(parts)).sorted().joined(separator: "\n")
+    }
+
+    /// Compares the router with the one first seen on this profile. True only when a stored identity matches;
+    /// the first sighting is stored and stays tentative, and a different router never replaces it.
+    public func confirmRouter(_ identity: String, network: String) -> Bool {
+        guard !identity.isEmpty else { return false }
+        guard let stored = state.routers?[network] else {
+            var routers = state.routers ?? [:]
+            routers[network] = identity
+            state.routers = routers
+            persist()
+            return false
+        }
+        return stored == identity
+    }
+
+    public func hasRouterIdentity(network: String) -> Bool { state.routers?[network] != nil }
 
     private static func host(_ device: NetworkDevice) -> String {
         device.hasResolvedHostname ? device.hostname.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". ")) : ""

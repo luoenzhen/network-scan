@@ -11,7 +11,8 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
 ## 📱 Features
 
 1. **Subnet Device Discovery & Identification**
-   - Probes local subnet addresses on TCP ports 80, 443, and 22 in parallel within one host timeout. Explicit connection refusals also establish reachability; devices that filter all probes may still be missed.
+   - Probes local subnet addresses on TCP ports 80, 443, 22, 445, 8080 and 62078 (iPhone/iPad sync) in parallel within one host timeout. Concurrent hosts are limited so that at most 128 sockets are open at once. Explicit connection refusals also establish reachability; devices that filter all probes may still be missed.
+   - Unresolved devices without a reverse DNS name get a unicast NetBIOS name query (UDP 137), which names many Windows PCs, Samba servers and NAS boxes. Unicast does not need the multicast entitlement.
    - Respects the subnet mask. Large networks are limited to a 4096-address window containing this device.
    - Combines hostname and HTTP identity lookup, an embedded IEEE OUI database when a MAC is supplied, and bounded Bonjour service resolution. Advertisements are recorded as self-reported evidence, not as proof that a service is reachable.
    - Categorizes devices automatically (Smartphones, Computers, Routers, Smart Home/IoT, Printers, Gaming consoles, Smart TVs).
@@ -33,8 +34,10 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
 
 4. **Network Diagnostic Toolbox**
    - **Device and Service Risk Checks**: After discovery, checks TCP ports 21, 23, 139, 445, and 3389 with at most two devices checked concurrently. Flags reachable FTP/Telnet and file-sharing/remote-desktop services for review, and shows unresolved identity as information. These observations do not prove malicious activity or unauthorized presence; packet examples are never used as evidence. The detail view distinguishes unchecked, checking, and checked services.
-   - **Continuous TCP Probe**: Measures TCP port 80 response time (including explicit refusals), min/avg/max latency, and failed-probe percentage over the last 50 results. This is not ICMP ping.
-   - **Multi-Threaded Port Scanner**: Audits open TCP ports (HTTP 80, HTTPS 443, SSH 22, DNS 53, SMB 445, RTSP 554, IPP 631, etc.) with service identification.
+   - **Network Troubleshooter (Diagnose)**: Runs ordered checks and names the first one that fails: router reachable (TCP 80/443/53), DNS resolution time, internet reachable (TCP 443 to 1.1.1.1 without DNS), captive-portal check (captive.apple.com), public IP (Cloudflare trace) and a 5 MB download speed test (speed.cloudflare.com). Steps that depend on a failed step are skipped. These checks contact Apple and Cloudflare.
+   - **Continuous TCP Probe**: Measures TCP response time on a port you choose (default 80), including explicit refusals, with min/avg/max latency, failed-probe percentage and a response-time chart over the last 50 results. This is not ICMP ping.
+   - **Multi-Threaded Port Scanner**: Audits common TCP ports (HTTP 80, HTTPS 443, SSH 22, DNS 53, SMB 445, RTSP 554, IPP 631, etc.) or a custom list such as `22, 80, 8000-8100` (up to 1,024 ports). Open ports show the banner the service sends (SSH, FTP, SMTP…) or the web server's `Server` header, web ports get an **Open** link to the admin page, and TLS ports 443/8443 get a certificate check: subject, expiry date, self-signed and whether iOS trusts it. The TLS handshake is cancelled after the certificate arrives.
+   - **DNS Lookup**: Resolves a hostname to IPv4/IPv6 addresses, or an IP address to its reverse DNS name, through the system resolver, with the lookup time.
    - **Wake-on-LAN (WOL)**: Sends a UDP magic packet on the selected LAN interface. On iOS, broadcast delivery requires Local Network access and a signing profile with Apple's managed Multicast Networking entitlement; ordinary free AltStore signing does not provide it. Sending a packet does not confirm that a device woke up.
 
 5. **Saved Device Labels, History, and Reports**
@@ -43,10 +46,17 @@ NetScan discovers reachable IPv4 devices on a local network and provides TCP por
    - Matches supplied MAC addresses first, then unique hostnames, then addresses within a network profile. MAC conflicts create separate records. Hostname/address associations are clearly marked for verification and do not inherit recognition. An unavailable network name also makes the association tentative. iOS privacy limits mean networks with identical visible addressing can be indistinguishable; these associations are not proof of identity.
    - History shows new observations, devices not seen, matching-device address changes, and port changes only where both scans received definite responses. Unanswered probes are inconclusive, not evidence that a service closed.
    - Identification evidence shows source and observation time, distinguishes inferred classifications and self-reported names/headers, and warns that an OUI can identify a module rather than an appliance.
-   - Devices → History and reports provides scan history and a dated plain-text report with Share and Save File. Redaction defaults on and structurally omits aliases, notes, locations, IP/MAC addresses, hostnames, network identifiers, and raw evidence. Disabling it includes personal notes: review the preview before sharing.
+   - iOS hides the Wi-Fi name without a special entitlement, so NetScan also fingerprints the network by its router: subnet and gateway (already part of the profile) plus the router's hostname, manufacturer estimate and web `Server` header. The first scan stores the router identity; later scans whose router matches it treat saved labels as certain. A different router never replaces the stored identity. Routers of the same model can look alike, so this is not proof.
+   - **Watch mode** (Devices → Watch for new devices) rescans every 2–30 minutes (Settings) while NetScan is open and sends a local notification when a device appears that none of this network profile's saved scans recorded. Recognized devices and this iPhone are skipped, and the first scan is a baseline. Scheduled rescans wait while a device page or the report is open. iOS does not allow LAN scans in the background, so watch mode pauses when the app leaves the foreground.
+   - Devices → History and reports provides scan history and a dated report as plain text, CSV or JSON, with Share and Save File. CSV values that start with formula characters are prefixed with `'` so spreadsheets show them as text. Redaction defaults on and structurally omits aliases, notes, locations, IP/MAC addresses, hostnames, network identifiers, and raw evidence. Disabling it includes personal notes: review the preview before sharing.
    - Suggested risk actions are advisory. No default-password attempts, automatic device blocking, router integration, or actual remote-traffic capture are performed.
 
-6. **AltStore & Sideloading Ready**
+6. **Siri and Shortcuts**
+   - **Scan Network** opens NetScan on Devices and starts a scan.
+   - **Probe Host** checks a host's TCP port and reports the response time without opening the app.
+   - A Home Screen widget is not included; it needs a separate widget extension target.
+
+7. **AltStore & Sideloading Ready**
    - Pre-configured `Info.plist` with required iOS network privacy keys (`NSLocalNetworkUsageDescription` and `NSBonjourServices`).
    - Builds using Xcode (`build_ipa.sh`) and packages a compiled `.app` (`package_ipa.py`).
    - AltStore source template (`AltStore/altstore-source.json`).
@@ -78,7 +88,12 @@ network-scan/
 │   │   ├── PacketInspectorService.swift    # Network packet inspector & protocol parser
 │   │   ├── PortScannerService.swift        # TCP port scanner for diagnostic audit
 │   │   ├── PingDiagnosticService.swift     # ICMP/TCP ping latency measurement
-│   │   └── WakeOnLANService.swift          # WOL magic packet utility
+│   │   ├── WakeOnLANService.swift          # WOL magic packet utility
+│   │   ├── NetworkTroubleshooterService.swift # Ordered router/DNS/internet/captive/speed checks
+│   │   ├── DNSLookupService.swift          # Forward and reverse DNS lookups
+│   │   ├── TLSInspectorService.swift       # TLS certificate expiry, self-signing and trust
+│   │   ├── NetBIOSNameService.swift        # Unicast NetBIOS node-status name query
+│   │   └── NewDeviceNotifier.swift         # Watch-mode local notifications
 │   ├── ViewModels/
 │   ├── Views/
 │   └── Resources/
@@ -143,5 +158,7 @@ Device smoke test after installing a fresh build:
 3. Start a port scan and a TCP probe; navigate away and use the tools screen. Check that screens keep independent results and remain responsive.
 4. Stop/restart discovery, change Wi-Fi networks, and switch to cellular/background during a scan. Old results must not reappear.
 5. Verify `/25` and `/23` networks, local traffic during a download, remote traffic marked unavailable, sample packet labels/JSON, and Wake-on-LAN success/failure feedback.
+6. Run Tools → Diagnose on Wi-Fi, on cellular, and with the router unplugged from the internet. Scan custom ports on the router, open its admin page, and check its certificate. Look up a hostname and an IPv4 address.
+7. Turn on watch mode with a short interval, allow notifications, then join a new device and confirm the alert. Stay on a device page across an interval and confirm it isn't replaced. Run the Scan Network and Probe Host shortcuts, and export CSV and JSON with hiding on and off.
 
 The Windows development environment cannot compile Apple frameworks or run an iOS simulator. Passing portable checks alone does not confirm an iOS build or device behavior.
